@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option go_package = "github.com/KyloRilo/helios/proto";
+package proto;
+
+service Docker {
+    rpc BuildImage (BuildReq) returns (BuildResp) {}
+    rpc CreateContainer (CreateReq) returns (CreateResp) {}
+    rpc StartContainer (StartReq) returns (StartResp) {}
+}
+
+message BuildReq {
+    string image = 1;
+    string buildDir = 2;
+    string dockerfile = 3;
+}
+
+message BuildResp {
+    int32 code = 1;
+}
+
+message CreateReq {
+    string image = 1;
+}
+
+message CreateResp {
+    int32 code = 1;
+    int32 id = 2;
+}
+
+message StartReq {
+    int32 id = 1;
+}
+
+message StartResp {
+    int32 code = 1;
+}
