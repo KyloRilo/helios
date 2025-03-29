@@ -84,9 +84,6 @@ func NewModel() Model {
 		styles: NewStyles(renderer),
 		form: huh.NewForm(
 			huh.NewGroup(
-				huh.NewText().
-					Key("version").
-					Title("Cluster Version"),
 				huh.NewSelect[int]().
 					Key("operation").
 					Options(
@@ -130,14 +127,17 @@ func (m Model) View() string {
 	case huh.StateCompleted:
 		var b strings.Builder
 		fmt.Fprintf(&b, "Test completed...")
-		return style.Status.Margin(0, 1).Padding(1, 2).Width(48).Render() + "\n\n"
+		return style.Status.Margin(0, 1).Padding(1, 2).Width(48).Render(b.String()) + "\n\n"
 	default:
+		v := strings.TrimSuffix(m.form.View(), "\n\n")
+		form := m.lg.NewStyle().Margin(1, 0).Render(v)
 		errors := m.form.Errors()
 		header := m.appBoundaryView("Test boundary")
 		if len(errors) > 0 {
 			header = m.appErrorBoundaryView(m.errorView())
 		}
-		return style.Base.Render()
+		footer := m.appBoundaryView("Test Footer")
+		return style.Base.Render(header + "\n" + form + "\n\n" + footer)
 	}
 }
 

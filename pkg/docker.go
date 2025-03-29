@@ -2,40 +2,33 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 
-	"github.com/KyloRilo/helios/proto"
+	"github.com/KyloRilo/helios/models"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 type DockerService struct {
 	*client.Client
+	models.ChannelService
 	platform  string
 	authToken string
 }
 
-func (cmgr *DockerService) init(client *client.Client, _ interface{}) {
-	cmgr.Client = client
-	cmgr.platform = ""
-	cmgr.authToken = ""
-}
-
-func (cmgr *DockerService) Create(ctx context.Context, dockerImage string) (*container.CreateResponse, error) {
-	reader, err := cmgr.ImagePull(
+func (serv *DockerService) Create(ctx context.Context, msg models.CreateContainer) (models.IMessage, error) {
+	reader, err := serv.ImagePull(
 		ctx,
-		dockerImage,
+		msg.DockerImage,
 		image.PullOptions{
-			RegistryAuth: cmgr.authToken,
-			Platform:     cmgr.platform,
+			RegistryAuth: serv.authToken,
+			Platform:     serv.platform,
 		},
 	)
 
@@ -44,8 +37,8 @@ func (cmgr *DockerService) Create(ctx context.Context, dockerImage string) (*con
 	}
 	io.Copy(os.Stdout, reader)
 
-	resp, err := cmgr.ContainerCreate(ctx, &container.Config{
-		Image: dockerImage,
+	resp, err := serv.ContainerCreate(ctx, &container.Config{
+		Image: msg.DockerImage,
 		Cmd:   []string{"echo", "hello world"},
 	}, nil, nil, nil, "")
 	if err != nil {
@@ -55,14 +48,14 @@ func (cmgr *DockerService) Create(ctx context.Context, dockerImage string) (*con
 	return &resp, nil
 }
 
-func (cmgr *DockerService) Start(ctx context.Context, containerId string) {
-	if err := cmgr.ContainerStart(ctx, containerId, container.StartOptions{}); err != nil {
+func (serv *DockerService) Start(ctx context.Context, msg models.StartContainer) (models.IMessage, error) {
+	if err := serv.ContainerStart(ctx, msg.ContainerId, container.StartOptions{}); err != nil {
 		panic(err)
 	}
 }
 
-func (cmgr *DockerService) Listen(ctx context.Context, containerId string) {
-	statusCh, errCh := cmgr.ContainerWait(ctx, containerId, container.WaitConditionNotRunning)
+func (serv *DockerService) Log(ctx context.Context, msg models.LogContainer) (models.IMessage, error) {
+	statusCh, errCh := serv.ContainerWait(ctx, msg.ContainerId, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -71,7 +64,7 @@ func (cmgr *DockerService) Listen(ctx context.Context, containerId string) {
 	case <-statusCh:
 	}
 
-	out, err := cmgr.ContainerLogs(ctx, containerId, container.LogsOptions{ShowStdout: true})
+	out, err := serv.ContainerLogs(ctx, msg.ContainerId, container.LogsOptions{ShowStdout: true})
 	if err != nil {
 		panic(err)
 	}
@@ -79,51 +72,66 @@ func (cmgr *DockerService) Listen(ctx context.Context, containerId string) {
 	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
 }
 
-//
-// gRPC impl
-//
+func (serv *DockerService) List(ctx context.Context, msg models.ListContainers) models.IMessage {
+	var resp models.IMessage
+	ls, err := serv.ContainerList(ctx, container.ListOptions{
+		Size:   msg.Size,
+		All:    msg.All,
+		Latest: msg.Latest,
+		Since:  msg.Since,
+	})
 
-var dockerService *DockerService
+	if err != nil {
+		resp = models.ErrorMessage{
+			BaseErr: err,
+		}
+	} else {
+		// containers := make([]models.Container, len(ls))
+		resp = models.ListContainerResp{
+			Containers: []models.Container{{}},
+		}
+	}
 
-const dockerServerPort int = 50501
-
-type DockerServer struct {
-	proto.UnimplementedDockerServer
+	return resp
 }
 
-func (s *DockerServer) BuildImage(ctx context.Context, in *proto.BuildReq) (*proto.BuildResp, error) {
-	// dockerService.ImageBuild(ctx)
-	return nil, nil
+func (serv DockerService) MsgHandler(ctx context.Context, msg models.IMessage) models.IMessage {
+	var resp models.IMessage
+	var err error
+	log.Print("DockerService.Receive() => Received: ", msg)
+	switch req := msg.(type) {
+	case models.CreateContainer:
+		resp, err = serv.Create(ctx, req)
+	case models.StartContainer:
+		resp, err = serv.Start(ctx, req)
+	case models.LogContainer:
+		resp, err = serv.Log(ctx, req)
+	default:
+		err = fmt.Errorf("DockerService.Receive() => Unhandled message type")
+	}
+
+	if err != nil {
+		resp = models.ErrorMessage{
+			BaseErr: err,
+		}
+	}
+
+	return resp
 }
 
-func (s *DockerServer) CreateContainer(ctx context.Context, in *proto.CreateReq) (*proto.CreateResp, error) {
-	dockerService.Create(ctx, in.Image)
-	return nil, nil
-}
-
-func (s *DockerServer) StartContainer(_ context.Context, in *proto.StartReq) (*proto.StartResp, error) {
-	return nil, nil
-}
-
-func InitDockerService() {
-	log.Print("Running Docker gRPC server")
+func InitDockerService() models.IChannel {
+	log.Print("Init DockerService...")
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
 
-	dockerService.init(client, nil)
-	lis, err := net.Listen("tcp", formatPort(dockerServerPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	serv := DockerService{
+		Client:         client,
+		platform:       "",
+		authToken:      "",
+		ChannelService: *models.NewChannelService(),
 	}
 
-	s := grpc.NewServer()
-	proto.RegisterDockerServer(s, &DockerServer{})
-	reflection.Register(s)
-
-	log.Printf("server listening at %v", lis.Addr())
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	return serv
 }
