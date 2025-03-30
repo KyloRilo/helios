@@ -1,4 +1,4 @@
-package models
+package model
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func (m Message) getTimestamp() time.Time {
 	return m.timestamp
 }
 
-type ErrorMessage struct {
+type ErrorMsgResp struct {
 	Message
 	BaseErr error
 }
@@ -72,14 +72,6 @@ type ListContainers struct {
 	Since  string
 	Before string
 	Limit  int
-}
-
-type Container struct {
-}
-
-type ListContainerResp struct {
-	Message
-	Containers []Container
 }
 
 type IChannel interface {
@@ -114,6 +106,31 @@ func (c ChannelService) Listen(ctx context.Context, handler func(context.Context
 		}
 	}
 }
+
+// ! Saved example of a MsgHandler() impl
+// func (serv DockerController) MsgHandler(ctx context.Context, msg models.IMessage) models.IMessage {
+// 	var resp models.IMessage
+// 	var err error
+// 	log.Print("DockerController.Receive() => Received: ", msg)
+// 	switch req := msg.(type) {
+// 	case models.CreateContainer:
+// 		resp, err = serv.Create(ctx, req)
+// 	case models.StartContainer:
+// 		resp, err = serv.Start(ctx, req)
+// 	case models.LogContainer:
+// 		resp, err = serv.Log(ctx, req)
+// 	default:
+// 		err = fmt.Errorf("DockerController.Receive() => Unhandled message type")
+// 	}
+
+// 	if err != nil {
+// 		resp = models.ErrorMessage{
+// 			BaseErr: err,
+// 		}
+// 	}
+
+// 	return resp
+// }
 
 func NewChannelService() *ChannelService {
 	return &ChannelService{
