@@ -107,31 +107,6 @@ func (c ChannelService) Listen(ctx context.Context, handler func(context.Context
 	}
 }
 
-// ! Saved example of a MsgHandler() impl
-// func (serv DockerController) MsgHandler(ctx context.Context, msg models.IMessage) models.IMessage {
-// 	var resp models.IMessage
-// 	var err error
-// 	log.Print("DockerController.Receive() => Received: ", msg)
-// 	switch req := msg.(type) {
-// 	case models.CreateContainer:
-// 		resp, err = serv.Create(ctx, req)
-// 	case models.StartContainer:
-// 		resp, err = serv.Start(ctx, req)
-// 	case models.LogContainer:
-// 		resp, err = serv.Log(ctx, req)
-// 	default:
-// 		err = fmt.Errorf("DockerController.Receive() => Unhandled message type")
-// 	}
-
-// 	if err != nil {
-// 		resp = models.ErrorMessage{
-// 			BaseErr: err,
-// 		}
-// 	}
-
-// 	return resp
-// }
-
 func NewChannelService() *ChannelService {
 	return &ChannelService{
 		channel: make(chan IMessage),
