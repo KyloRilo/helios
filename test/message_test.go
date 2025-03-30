@@ -65,16 +65,19 @@ func TestInitDockerService(t *testing.T) {
 
 func TestBadMsgType(t *testing.T) {
 	serv := initTestService()
-	err := serv.MsgHandler(context.Background(), BadMsgTest{})
-	if err == nil {
+	resp := serv.MsgHandler(context.Background(), BadMsgTest{})
+	if resp == nil {
 		t.Errorf("Expected error throw")
 	}
 }
 
-func TestCreateMsg(t *testing.T) {
+func TestGoodMsgType(t *testing.T) {
 	serv := initTestService()
-	err := serv.MsgHandler(context.Background(), GoodMsgTest{})
-	if err != nil {
-		t.Errorf("Error Raised during CreateContainer => %s", err)
+	resp := serv.MsgHandler(context.Background(), GoodMsgTest{})
+	switch resp.(type) {
+	case SuccessResp:
+		break
+	default:
+		t.Errorf("Error Raised during CreateContainer => %s", resp)
 	}
 }
