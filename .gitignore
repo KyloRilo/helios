@@ -1,0 +1,7 @@
+.garden
+
+go.sum
+
+*.tfvars
+.terraform*
+terraform.tfstate*

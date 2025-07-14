@@ -1,0 +1,9 @@
+
+{
+  "datacenter": "dc1",
+  "node_name": "client",
+  "server": false,
+  "retry_join": ["consul-server-1", "consul-server-2", "consul-server-3"],
+  "bind_addr": "0.0.0.0",
+  "client_addr": "0.0.0.0"
+}

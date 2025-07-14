@@ -1,0 +1,81 @@
+services:
+  consul-server-1:
+    image: "hashicorp/consul:latest"
+    container_name: consul-server-1
+    hostname: consul-server-1
+    command: "agent -server -bootstrap-expect=3 -node=consu-server-1 -config-dir=/consul/config"
+    volumes:
+      - ./build/consul/server1_config.json:/consul/config/config.json
+    ports:
+      - "8500:8500"
+      - "53:53"
+    networks:
+      - helios-net
+  consul-server-2:
+    image: "hashicorp/consul:latest"
+    container_name: consul-server-2
+    hostname: consul-server-2
+    command: "agent -server -bootstrap-expect=3 -node=consul-server-2 -config-dir=/consul/config"
+    volumes:
+      - ./build/consul/server2_config.json:/consul/config/config.json
+    networks:
+      - helios-net
+  consul-server-3:
+    image: "hashicorp/consul:latest"
+    container_name: consul-server-3
+    hostname: consul-server-3
+    command: "agent -server -bootstrap-expect=3 -node=consul-server-3 -config-dir=/consul/config"
+    volumes:
+      - ./build/consul/server3_config.json:/consul/config/config.json
+    networks:
+      - helios-net
+  consul-client:
+    image: "hashicorp/consul:latest"
+    container_name: consul-client
+    hostname: consul-client
+    command: >
+      agent -node=consul-client -config-dir=/consul/config
+      -retry-join=consul-server-1
+      -retry-join=consul-server-2
+      -retry-join=consul-server-3
+    volumes:
+      - ./build/consul/client_config.json:/consul/config/config.json
+    depends_on:
+      - consul-server-1
+      - consul-server-2
+      - consul-server-3
+    networks:
+      - helios-net
+  helios-leader:
+    build:
+      context: .
+      dockerfile: build/docker/leader.Dockerfile
+    container_name: helios-leader
+    hostname: helios-leader
+    environment:
+      - CONSUL_HTTP_ADDR=consul-server-1:8500
+      - HELIOS_HOST=127.0.0.1
+      - HELIOS_PORT=6330
+      - HELIOS_ADVERT_HOST=""
+    depends_on:
+      - consul-server-1
+      - consul-server-2
+      - consul-server-3
+    networks:
+      - helios-net
+  # helios-worker:
+  #   build:
+  #     dockerfile: worker.Dockerfile
+  #   container_name: helios-worker
+  #   hostname: helios-worker
+  #   environment:
+  #     - CONSUL_HTTP_ADDR=consul-server-1:8500
+  #   depends_on:
+  #     - consul-server-1
+  #   networks:
+  #     - helios-net
+
+
+networks:
+  helios-net:
+    driver: bridge

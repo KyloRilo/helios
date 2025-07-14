@@ -5,14 +5,12 @@ import (
 )
 
 type BaseError struct {
-	MessageFmt string
-	FmtItems   []interface{}
-	ErrorCode  int
-	Err        error
+	ErrorCode int
+	Err       error
 }
 
-func (err BaseError) error() string {
-	return fmt.Sprintf(err.MessageFmt, err.FmtItems...)
+func (err BaseError) error(errorFmt string, items ...interface{}) string {
+	return fmt.Sprintf(errorFmt, items...)
 }
 
 type NotImplementedError struct {
@@ -21,15 +19,18 @@ type NotImplementedError struct {
 }
 
 func (err NotImplementedError) Error() string {
-	err.ErrorCode = 500
-	err.MessageFmt = "Method '%s' is unimplemented"
-	err.FmtItems = []interface{}{err.name}
-	return err.error()
+	return err.error(
+		"Method '%s' is unimplemented",
+		err.name,
+	)
 }
 
 func RaiseNotImplErr(name string) error {
 	return NotImplementedError{
 		name: name,
+		BaseError: BaseError{
+			ErrorCode: 500,
+		},
 	}
 }
 
@@ -39,20 +40,22 @@ func RaiseNotImplErr(name string) error {
 
 type InitCloudError struct {
 	BaseError
-	conf map[string]interface{}
 }
 
 func (err InitCloudError) Error() string {
-	err.ErrorCode = 500
-	err.MessageFmt = "Unable to init Cloud Service => %s"
-	err.FmtItems = []interface{}{err.Err}
-	return err.error()
+	return err.error(
+		"Unable to init Cloud Service => %s",
+		err.Err,
+	)
 }
 
 func RaiseInitCloudError(err error) error {
-	ex := InitCloudError{}
-	ex.Err = err
-	return ex
+	return InitCloudError{
+		BaseError: BaseError{
+			Err:       err,
+			ErrorCode: 500,
+		},
+	}
 }
 
 type ListObjectsError struct {
@@ -62,18 +65,46 @@ type ListObjectsError struct {
 }
 
 func (err ListObjectsError) Error() string {
-	err.ErrorCode = 500
-	err.MessageFmt = "Unable to listObjects at 's3://%s/%s' => %s"
-	err.FmtItems = []interface{}{err.bucket, err.prefix, err.Err}
-	return err.error()
+	return err.error(
+		"Unable to listObjects at 's3://%s/%s' => %s",
+		err.bucket, err.prefix, err.Err,
+	)
 }
 
 func RaiseListObjsErr(bucket, prefix string, err error) error {
-	ex := ListObjectsError{
+	return ListObjectsError{
 		bucket: bucket,
 		prefix: prefix,
+		BaseError: BaseError{
+			Err:       err,
+			ErrorCode: 500,
+		},
 	}
+}
 
-	ex.Err = err
-	return ex
+type GetObjectError struct {
+	BaseError
+	bucket string
+	key    string
+}
+
+func (err GetObjectError) Error() string {
+	return err.error(
+		"Unable to perform GetObject => Bucket: '%s', Key: '%s', => %s",
+		err.bucket, err.key, err.Err,
+	)
+}
+
+func RaiseGetObjErr(bucket string, key string, err error) error {
+	return GetObjectError{
+		bucket: bucket,
+		key:    key,
+		BaseError: BaseError{
+			ErrorCode: 500,
+			Err:       err,
+		},
+	}
+}
+
+type PutObjectError struct {
 }

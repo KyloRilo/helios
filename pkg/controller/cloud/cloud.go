@@ -16,24 +16,29 @@ type CloudConfig struct {
 	PrivateKey string
 }
 
-type ICloudCtrl interface {
+type ICloudStoreCtrl interface {
 	Init(context.Context, CloudConfig) error
-	GetObject(_ context.Context, bucket, key string) (string, error)
-	ListObjects(_ context.Context, bucket, prefix string) ([]string, error)
+	PutObject(context.Context, string, string, string) error
+	GetObject(context.Context, string, string) (string, error)
+	ListObjects(context.Context, string, string) ([]string, error)
 }
 
-type CloudController struct{}
+type CloudStorageCtrl struct{}
 
-func (cl CloudController) Init(ctx context.Context, conf CloudConfig) error {
-	return errors.RaiseNotImplErr("init")
+func (cl CloudStorageCtrl) Init(ctx context.Context, conf CloudConfig) error {
+	return errors.RaiseNotImplErr("Init")
 }
 
-func (cl CloudController) GetObject(ctx context.Context, bucket, key string) (string, error) {
-	return "", errors.RaiseNotImplErr("getObject")
+func (cl CloudStorageCtrl) GetObject(ctx context.Context, bucket, key string) (string, error) {
+	return "", errors.RaiseNotImplErr("GetObject")
 }
 
-func (cl CloudController) ListObjects(ctx context.Context, bucket, prefix string) ([]string, error) {
-	return nil, errors.RaiseNotImplErr("listObjects")
+func (cl CloudStorageCtrl) PutObject(ctx context.Context, bucket string, key string, body string) error {
+	return errors.RaiseNotImplErr("PutObject")
+}
+
+func (cl CloudStorageCtrl) ListObjects(ctx context.Context, bucket, prefix string) ([]string, error) {
+	return nil, errors.RaiseNotImplErr("ListObjects")
 }
 
 const (
@@ -41,21 +46,21 @@ const (
 	AWS = "aws"
 )
 
-func InitCloudController(conf CloudConfig) (ICloudCtrl, error) {
-	var cloudCtrl ICloudCtrl
+func InitCloudStorageCtrl(conf CloudConfig) (ICloudStoreCtrl, error) {
+	var cloudCtrl ICloudStoreCtrl
 	ctx := context.Background()
 
 	switch conf.Cloud {
 	case GCP:
 		cloudCtrl = gcpCtrl{}
 	case AWS:
-		cloudCtrl = awsCtrl{
+		cloudCtrl = awsStorageCtrl{
 			roleArn:    conf.RoleArn,
 			region:     conf.Region,
 			externalId: conf.ExternalId,
 		}
 	default:
-		return nil, fmt.Errorf("Unable to match cloud controller")
+		return nil, fmt.Errorf("Unable to match cloud storage controller")
 	}
 
 	if err := cloudCtrl.Init(ctx, conf); err != nil {

@@ -1,7 +1,11 @@
 package cloud
 
-import "github.com/KyloRilo/helios/pkg/model"
+import (
+	"github.com/asynkron/protoactor-go/actor"
+)
 
-type CloudCompute struct {
-	model.ChannelService
+type CloudComputeService struct {
+	actor.Actor
 }
+
+func (serv CloudComputeService) Receive(actor.Actor) {}
