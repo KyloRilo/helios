@@ -19,7 +19,7 @@ jobs:
         go-version: '1.24.1'
 
     - name: Build
-      run: make
+      run: go build -v ./...
 
     - name: Test
-      run: make test
+      run: go test -v ./...

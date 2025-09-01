@@ -14,13 +14,13 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
-type DockerController struct {
+type DockerService struct {
 	*client.Client
 	platform  string
 	authToken string
 }
 
-func (serv *DockerController) Create(ctx context.Context, msg model.CreateContainer) (*container.CreateResponse, error) {
+func (serv *DockerService) Create(ctx context.Context, msg model.CreateContainer) (*container.CreateResponse, error) {
 	reader, err := serv.ImagePull(
 		ctx,
 		msg.DockerImage,
@@ -46,7 +46,7 @@ func (serv *DockerController) Create(ctx context.Context, msg model.CreateContai
 	return &resp, nil
 }
 
-func (serv *DockerController) Log(ctx context.Context, msg model.LogContainer) error {
+func (serv *DockerService) Log(ctx context.Context, msg model.LogContainer) error {
 	statusCh, errCh := serv.ContainerWait(ctx, msg.ContainerId, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -66,14 +66,14 @@ func (serv *DockerController) Log(ctx context.Context, msg model.LogContainer) e
 	return nil
 }
 
-func InitDockerController() DockerController {
-	log.Print("Init DockerController...")
+func InitDockerService() DockerService {
+	log.Print("Init InitDockerService...")
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
 
-	ctrl := DockerController{
+	ctrl := DockerService{
 		Client:    client,
 		platform:  "",
 		authToken: "",

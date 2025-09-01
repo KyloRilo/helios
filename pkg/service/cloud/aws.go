@@ -12,15 +12,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-type awsStorageCtrl struct {
-	CloudStorageCtrl
+type awsStorageService struct {
+	CloudStorageService
 	s3Client   *s3.Client
 	roleArn    string
 	region     string
 	externalId string
 }
 
-func (ctrl awsStorageCtrl) Init(ctx context.Context, conf CloudConfig) error {
+func (ctrl awsStorageService) Init(ctx context.Context, conf CloudConfig) error {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(ctrl.region),
 		config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
@@ -38,7 +38,7 @@ func (ctrl awsStorageCtrl) Init(ctx context.Context, conf CloudConfig) error {
 	return nil
 }
 
-func (ctrl awsStorageCtrl) ListObjects(ctx context.Context, bucket, prefix string) ([]string, error) {
+func (ctrl awsStorageService) ListObjects(ctx context.Context, bucket, prefix string) ([]string, error) {
 	keys := []string{}
 	output, err := ctrl.s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
@@ -57,7 +57,7 @@ func (ctrl awsStorageCtrl) ListObjects(ctx context.Context, bucket, prefix strin
 	return keys, nil
 }
 
-func (ctrl awsStorageCtrl) GetObject(ctx context.Context, bucket, key string) (string, error) {
+func (ctrl awsStorageService) GetObject(ctx context.Context, bucket, key string) (string, error) {
 	output, err := ctrl.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -78,7 +78,7 @@ func (ctrl awsStorageCtrl) GetObject(ctx context.Context, bucket, key string) (s
 	return buf.String(), nil
 }
 
-func (ctrl awsStorageCtrl) PutObject(ctx context.Context, bucket string, key string, body string) error {
+func (ctrl awsStorageService) PutObject(ctx context.Context, bucket string, key string, body string) error {
 	_, err := ctrl.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),

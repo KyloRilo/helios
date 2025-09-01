@@ -1,7 +1,5 @@
-.garden
-
+.env
 go.sum
-
 *.tfvars
 .terraform*
 terraform.tfstate*

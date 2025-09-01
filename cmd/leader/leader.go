@@ -5,96 +5,15 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
-	"sync"
-	"time"
 
-	"github.com/KyloRilo/helios/pkg/service/core"
-	"github.com/KyloRilo/helios/pkg/service/state"
-	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/cluster"
-	"github.com/asynkron/protoactor-go/cluster/clusterproviders/consul"
-	"github.com/asynkron/protoactor-go/cluster/identitylookup/disthash"
-	"github.com/asynkron/protoactor-go/remote"
-	"github.com/hashicorp/consul/api"
+	"github.com/KyloRilo/helios/pkg/service/leader"
 )
 
-// Leader Raft Impl
-type LeaderService struct {
-	ctx          context.Context
-	mtx          sync.RWMutex
-	cluster      *cluster.Cluster
-	consulClient *api.Client
-	core         core.CoreService
-	state        state.StateService
-}
-
-func (leader *LeaderService) Shutdown() {
-	leader.cluster.Shutdown(true)
-}
-
-func (leader *LeaderService) ListMembers() {
-	for {
-		services, _, err := leader.consulClient.Catalog().Services(nil)
-		if err != nil {
-			log.Printf("Error querying services: %v", err)
-		} else {
-			log.Println("Services in catalog:")
-			for name := range services {
-				log.Printf("- %s", name)
-			}
-		}
-		time.Sleep(15 * time.Second)
-	}
-}
-
-func initLeaderService(ctx context.Context) LeaderService {
-	consulConfig := api.DefaultConfig()
-	consulAddr := os.Getenv("CONSUL_HTTP_ADDR")
-	if consulAddr != "" {
-		consulConfig.Address = consulAddr
-	}
-
-	client, err := api.NewClient(consulConfig)
-	if err != nil {
-		log.Fatalf("Failed to create Consul client: %v", err)
-	}
-
-	host, port, _ := getHostInfo()
-	system := actor.NewActorSystem()
-	provider, err := consul.NewWithConfig(consulConfig)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	lookup := disthash.New()
-	config := remote.Configure(host, port)
-	leader := LeaderService{
-		ctx:          ctx,
-		consulClient: client,
-		core:         core.InitCoreService(),
-		state:        state.InitStateService(),
-	}
-
-	cluster := cluster.New(system, cluster.Configure(
-		"helios-leader", provider, lookup, config, cluster.WithKinds(
-			cluster.NewKind("helios-core", actor.PropsFromProducer(func() actor.Actor {
-				return leader.core
-			})),
-			cluster.NewKind("helios-state", actor.PropsFromProducer(func() actor.Actor {
-				return leader.state
-			})),
-		),
-	))
-
-	leader.cluster = cluster
-	cluster.StartMember()
-	return leader
-}
-
-func getHostInfo() (string, int, string) {
-	host := os.Getenv("HELIOS_HOST")
-	advertHost := os.Getenv("HELIOS_ADVERT_HOST")
+func getHostInfo() (host string, port int, advertHost string) {
+	host = os.Getenv("HELIOS_HOST")
+	advertHost = os.Getenv("HELIOS_ADVERT_HOST")
 	port, err := strconv.Atoi(os.Getenv("HELIOS_PORT"))
 	if err != nil {
 		log.Panic(err)
@@ -105,11 +24,27 @@ func getHostInfo() (string, int, string) {
 
 func main() {
 	ctx := context.Background()
-	leader := initLeaderService(ctx)
+	host, port, _ := getHostInfo()
+	nodeId := os.Getenv("NODE_ID")
+	raftDir := filepath.Join(os.Getenv("RAFT_DIR"), nodeId)
+	os.MkdirAll(raftDir, 0700)
+
+	// mngr := heliosRaft.InitRaftManager(nodeId, raftDir, fmt.Sprintf(`%s:800%s`, host, nodeId))
+	// if nodeId == "1" {
+	// 	mngr.BootstrapCluster()
+	// 	time.Sleep(60 * time.Second)
+	// 	mngr.AddVoter()
+	// } else {
+	// 	// TODO: have nodes request to join the cluster via gRPC
+	// 	// Consul service mesh could help here
+	// }
+
+	leader := leader.InitLeaderService(ctx, host, port)
 	defer leader.Shutdown()
 
 	_, stop := signal.NotifyContext(ctx)
 	defer stop()
 
-	go leader.ListMembers()
+	leader.DiscoverPeers()
+	// leader.ListMembers()
 }

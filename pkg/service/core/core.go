@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/KyloRilo/helios/pkg/controller/docker"
 	"github.com/KyloRilo/helios/pkg/model"
+	"github.com/KyloRilo/helios/pkg/service/docker"
 
+	heliosRaft "github.com/KyloRilo/helios/pkg/controller/raft"
 	"github.com/asynkron/protoactor-go/actor"
 )
 
@@ -20,24 +21,27 @@ type TeardownNode struct {
 
 type CoreService struct {
 	actor.Actor
-	dockerCtrl docker.DockerController
+	raft   heliosRaft.Manager
+	docker docker.DockerService
 }
 
 func (serv CoreService) Receive(ctx actor.Context) {
 	var err error
-	msg := ctx.Message()
-	log.Println("CoreService.MsgHandler() => Receive: ", msg)
+	if serv.raft.IsLeader() {
+		msg := ctx.Message()
+		log.Println("CoreService.MsgHandler() => Receive: ", msg)
 
-	switch req := msg.(type) {
-	case SpinupNode:
-		err = serv.spinupNode(req.conf)
-	case TeardownNode:
-		err = serv.teardownNode(req.instanceId)
-	default:
-		err = fmt.Errorf("CoreService.MsgHandler() => Unhandled Message case")
+		switch req := msg.(type) {
+		case SpinupNode:
+			err = serv.spinupNode(req.conf)
+		case TeardownNode:
+			err = serv.teardownNode(req.instanceId)
+		default:
+			err = fmt.Errorf("CoreService.MsgHandler() => Unhandled Message case")
+		}
+
+		ctx.Respond(err)
 	}
-
-	ctx.Respond(err)
 }
 
 func (serv CoreService) spinupNode(_ model.InstanceConfig) error {
@@ -51,8 +55,9 @@ func (serv CoreService) teardownNode(_ string) error {
 
 func (serv CoreService) healthcheck() {}
 
-func InitCoreService() CoreService {
+func InitCoreService(raft heliosRaft.Manager) CoreService {
 	return CoreService{
-		dockerCtrl: docker.InitDockerController(),
+		raft:   raft,
+		docker: docker.InitDockerService(),
 	}
 }

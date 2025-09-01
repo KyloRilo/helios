@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/KyloRilo/helios/pkg/controller/docker"
+	"github.com/KyloRilo/helios/pkg/service/docker"
 	"github.com/asynkron/protoactor-go/actor"
 )
 
@@ -20,7 +20,7 @@ type DestroyContainer GetContainer
 
 type WorkerService struct {
 	actor.Actor
-	dockerCtrl docker.DockerController
+	dockerCtrl docker.DockerService
 }
 
 func (serv WorkerService) Receive(ctx actor.Context) {
@@ -55,6 +55,6 @@ func (serv WorkerService) destroyContainer(containerId string) error {
 
 func InitWorkerService() actor.Actor {
 	return &WorkerService{
-		dockerCtrl: docker.InitDockerController(),
+		dockerCtrl: docker.InitDockerService(),
 	}
 }

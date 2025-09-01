@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb"
 )
@@ -62,56 +62,78 @@ func (s ManagerState) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 type Manager struct {
-	mtx     sync.Mutex
-	address raft.ServerAddress
-	state   ManagerState
+	mtx   sync.Mutex
+	conf  raft.Server
+	raft  *raft.Raft
+	state ManagerState
 }
 
-func (m *Manager) Transport() raft.Transport {
-	return nil
+func (m *Manager) IsLeader() bool {
+	return m.raft.State() == raft.Leader
 }
 
-func InitRaftManager() *Manager {
-	raftDir := os.Getenv("RAFT_DATA_DIR")
-	id := uuid.New()
+func (m *Manager) AddVoter() {
+	// m.raft.AddVoter(m.conf.ID, m.conf.Address, 0, 0)
+	m.raft.AddVoter("2", "helios-2:6330", 0, 0)
+	m.raft.AddVoter("3", "helios-3:6330", 0, 0)
+}
+
+func (m *Manager) BootstrapCluster() {
+	future := m.raft.BootstrapCluster(raft.Configuration{
+		Servers: []raft.Server{m.conf},
+	})
+	if err := future.Error(); err != nil {
+		log.Panicf("raft.InitRaftManager() => Unable to bootstrap raft cluster => %s", err)
+	}
+}
+
+func InitRaftManager(nodeId string, raftDir string, host string) *Manager {
+	fmt.Print("Raft Host: ", host)
 	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(id.String())
+	config.LocalID = raft.ServerID(nodeId)
 
-	baseDir := filepath.Join(raftDir, id.String())
-
-	logDb, err := boltdb.NewBoltStore(filepath.Join(baseDir, "logs.dat"))
+	logDb, err := boltdb.NewBoltStore(filepath.Join(raftDir, "logs.dat"))
 	if err != nil {
-		log.Panicf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, "logs.dat"), err)
+		log.Panicf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(raftDir, "logs.dat"), err)
 	}
 
-	stableDb, err := boltdb.NewBoltStore(filepath.Join(baseDir, "stable.dat"))
+	stableDb, err := boltdb.NewBoltStore(filepath.Join(raftDir, "stable.dat"))
 	if err != nil {
-		log.Panicf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, "stable.dat"), err)
+		log.Panicf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(raftDir, "stable.dat"), err)
 	}
 
-	fileSnap, err := raft.NewFileSnapshotStore(baseDir, 3, os.Stderr)
+	fileSnap, err := raft.NewFileSnapshotStore(raftDir, 3, os.Stderr)
 	if err != nil {
-		log.Panicf(`raft.NewFileSnapshotStore(%q, ...): %v`, baseDir, err)
+		log.Panicf(`raft.NewFileSnapshotStore(%q, ...): %v`, raftDir, err)
 	}
 
-	mngr := &Manager{}
-	r, err := raft.NewRaft(config, mngr.state, logDb, stableDb, fileSnap, mngr.Transport())
+	transport, err := raft.NewTCPTransport(host, nil, 3, 10*time.Second, os.Stderr)
+	if err != nil {
+
+	}
+
+	mngr := &Manager{
+		state: ManagerState{},
+		conf: raft.Server{
+			Suffrage: raft.Voter,
+			ID:       config.LocalID,
+			Address:  raft.ServerAddress(host),
+		},
+	}
+
+	raftRef, err := raft.NewRaft(
+		config,
+		mngr.state,
+		logDb,
+		stableDb,
+		fileSnap,
+		transport,
+	)
+
 	if err != nil {
 		log.Panicf("raft.InitRaftManager() => Unable to create new raft => %s", err)
 	}
 
-	cfg := raft.Configuration{
-		Servers: []raft.Server{{
-			Suffrage: raft.Voter,
-			ID:       raft.ServerID(""),
-			Address:  raft.ServerAddress(""),
-		}},
-	}
-
-	future := r.BootstrapCluster(cfg)
-	if err := future.Error(); err != nil {
-		log.Panicf("raft.InitRaftManager() => Unable to bootstrap raft cluster => %s", err)
-	}
-
+	mngr.raft = raftRef
 	return mngr
 }

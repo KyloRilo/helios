@@ -3,7 +3,7 @@ services:
     image: "hashicorp/consul:latest"
     container_name: consul-server-1
     hostname: consul-server-1
-    command: "agent -server -bootstrap-expect=3 -node=consu-server-1 -config-dir=/consul/config"
+    command: "agent -server -bootstrap-expect=3 -node=consul-server-1 -config-dir=/consul/config"
     volumes:
       - ./build/consul/server1_config.json:/consul/config/config.json
     ports:
@@ -46,15 +46,17 @@ services:
       - consul-server-3
     networks:
       - helios-net
-  helios-leader:
+  helios-leader-1:
     build:
       context: .
       dockerfile: build/docker/leader.Dockerfile
-    container_name: helios-leader
-    hostname: helios-leader
+    container_name: helios-leader-1
+    hostname: helios-1
     environment:
       - CONSUL_HTTP_ADDR=consul-server-1:8500
-      - HELIOS_HOST=127.0.0.1
+      - NODE_ID=1
+      - RAFT_DIR=/raft
+      - HELIOS_HOST=helios-1
       - HELIOS_PORT=6330
       - HELIOS_ADVERT_HOST=""
     depends_on:
@@ -63,6 +65,46 @@ services:
       - consul-server-3
     networks:
       - helios-net
+    ports:
+      - "6330:6330"
+  helios-leader-2:
+    build:
+      context: .
+      dockerfile: build/docker/leader.Dockerfile
+    container_name: helios-leader-2
+    hostname: helios-2
+    environment:
+      - CONSUL_HTTP_ADDR=consul-server-1:8500
+      - NODE_ID=2
+      - RAFT_DIR=/raft
+      - HELIOS_HOST=helios-2
+      - HELIOS_PORT=6330
+      - HELIOS_ADVERT_HOST=""
+    depends_on:
+      - helios-leader-1
+    networks:
+      - helios-net
+    ports:
+    - "6331:6330"
+  helios-leader-3:
+    build:
+      context: .
+      dockerfile: build/docker/leader.Dockerfile
+    container_name: helios-leader-3
+    hostname: helios-3
+    environment:
+      - CONSUL_HTTP_ADDR=consul-server-1:8500
+      - NODE_ID=3
+      - RAFT_DIR=/raft
+      - HELIOS_HOST=helios-3
+      - HELIOS_PORT=6330
+      - HELIOS_ADVERT_HOST=""
+    depends_on:
+      - helios-leader-1
+    networks:
+      - helios-net
+    ports:
+    - "6332:6330"
   # helios-worker:
   #   build:
   #     dockerfile: worker.Dockerfile
