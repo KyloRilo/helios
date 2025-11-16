@@ -1,13 +1,14 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"log"
 
+	"github.com/KyloRilo/helios/pkg/controller/docker"
 	"github.com/KyloRilo/helios/pkg/model"
-	"github.com/KyloRilo/helios/pkg/service/docker"
 
-	heliosRaft "github.com/KyloRilo/helios/pkg/controller/raft"
+	"github.com/KyloRilo/helios/pkg/service/raft"
 	"github.com/asynkron/protoactor-go/actor"
 )
 
@@ -21,21 +22,25 @@ type TeardownNode struct {
 
 type CoreService struct {
 	actor.Actor
-	raft   heliosRaft.Manager
-	docker docker.DockerService
+	raft   raft.RaftService
+	Docker docker.DockerCtrl
 }
 
-func (serv CoreService) Receive(ctx actor.Context) {
+func (core CoreService) GetServiceName() string {
+	return "core-service"
+}
+
+func (core CoreService) Receive(ctx actor.Context) {
 	var err error
-	if serv.raft.IsLeader() {
+	if core.raft.IsLeader() {
 		msg := ctx.Message()
 		log.Println("CoreService.MsgHandler() => Receive: ", msg)
 
 		switch req := msg.(type) {
 		case SpinupNode:
-			err = serv.spinupNode(req.conf)
+			err = core.spinupNode(req.conf)
 		case TeardownNode:
-			err = serv.teardownNode(req.instanceId)
+			err = core.teardownNode(req.instanceId)
 		default:
 			err = fmt.Errorf("CoreService.MsgHandler() => Unhandled Message case")
 		}
@@ -44,20 +49,40 @@ func (serv CoreService) Receive(ctx actor.Context) {
 	}
 }
 
-func (serv CoreService) spinupNode(_ model.InstanceConfig) error {
+func (core CoreService) spinupNode(_ model.InstanceConfig) error {
 	fmt.Printf("Received spinup event")
 	return nil
 }
 
-func (serv CoreService) teardownNode(_ string) error {
+func (core CoreService) teardownNode(_ string) error {
 	return nil
 }
 
-func (serv CoreService) healthcheck() {}
+func (core CoreService) healthcheck() {}
 
-func InitCoreService(raft heliosRaft.Manager) CoreService {
-	return CoreService{
-		raft:   raft,
-		docker: docker.InitDockerService(),
+func (core *CoreService) CreateService(ctx context.Context, srv model.Service) error {
+	meta, err := core.Docker.Create(ctx, model.ContainerConfig{
+		Name:  srv.Name,
+		Image: srv.Image,
+		Ports: srv.Ports,
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to Create container for service '%s' => %s", srv.Name, err)
 	}
+
+	fmt.Printf("Created Container '%s' running with ID '%s':", meta.Name, meta.Id)
+	fmt.Printf("Running at '%s' with ports '%v'", meta.Hostname, meta.Ports)
+	return nil
+}
+
+func (core *CoreService) DestroyService(srvName string) error {
+	return nil
+}
+
+func InitCoreService(cfg *model.ClusterConfig) model.ActorService {
+	core := CoreService{
+		Docker: docker.InitDockerController(),
+	}
+
+	return core
 }

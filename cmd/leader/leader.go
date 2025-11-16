@@ -2,32 +2,31 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 
 	"github.com/KyloRilo/helios/pkg/service/leader"
 )
 
-func getHostInfo() (host string, port int, advertHost string) {
+func getHostInfo() (host string, port int) {
 	host = os.Getenv("HELIOS_HOST")
-	advertHost = os.Getenv("HELIOS_ADVERT_HOST")
 	port, err := strconv.Atoi(os.Getenv("HELIOS_PORT"))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	return host, port, advertHost
+	return host, port
 }
 
-func main() {
-	ctx := context.Background()
-	host, port, _ := getHostInfo()
-	nodeId := os.Getenv("NODE_ID")
-	raftDir := filepath.Join(os.Getenv("RAFT_DIR"), nodeId)
-	os.MkdirAll(raftDir, 0700)
+func mainOld() {
+	// ctx := context.Background()
+	// host, port := getHostInfo()
+	// nodeId := os.Getenv("NODE_ID")
+	// raftDir := filepath.Join(os.Getenv("RAFT_DIR"), nodeId)
+	// os.MkdirAll(raftDir, 0700)
 
 	// mngr := heliosRaft.InitRaftManager(nodeId, raftDir, fmt.Sprintf(`%s:800%s`, host, nodeId))
 	// if nodeId == "1" {
@@ -39,12 +38,24 @@ func main() {
 	// 	// Consul service mesh could help here
 	// }
 
-	leader := leader.InitLeaderService(ctx, host, port)
-	defer leader.Shutdown()
+	// leader := leader.InitLeaderService(ctx, host, port)
+	// defer leader.Shutdown()
+
+	// _, stop := signal.NotifyContext(ctx)
+	// defer stop()
+
+	// leader.DiscoverPeers()
+	// leader.ListMembers()
+}
+
+func main() {
+	ctx := context.Background()
+	configDir := flag.String("config", "/helios/config/config.hcl", "Path to helios config hcl")
+	leader := leader.NewLeader(ctx, *configDir)
+	defer leader.SpinDown()
 
 	_, stop := signal.NotifyContext(ctx)
 	defer stop()
 
-	leader.DiscoverPeers()
-	// leader.ListMembers()
+	leader.Hello()
 }

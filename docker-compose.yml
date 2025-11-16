@@ -58,7 +58,6 @@ services:
       - RAFT_DIR=/raft
       - HELIOS_HOST=helios-1
       - HELIOS_PORT=6330
-      - HELIOS_ADVERT_HOST=""
     depends_on:
       - consul-server-1
       - consul-server-2
@@ -79,7 +78,6 @@ services:
       - RAFT_DIR=/raft
       - HELIOS_HOST=helios-2
       - HELIOS_PORT=6330
-      - HELIOS_ADVERT_HOST=""
     depends_on:
       - helios-leader-1
     networks:
@@ -98,7 +96,6 @@ services:
       - RAFT_DIR=/raft
       - HELIOS_HOST=helios-3
       - HELIOS_PORT=6330
-      - HELIOS_ADVERT_HOST=""
     depends_on:
       - helios-leader-1
     networks:
