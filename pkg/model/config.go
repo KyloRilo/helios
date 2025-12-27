@@ -9,12 +9,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
-// type HeliosConfig struct {
-// 	Cluster *ClusterConfig `hcl:"cluster,optional,block"`
-// 	Leader  *LeaderConfig  `hcl:"leader,optional,block"`
-// 	Worker  *WorkerConfig  `hcl:"worker,optional,block"`
-// }
-
 func readConfigFile(path string, target interface{}) error {
 	err := hclsimple.DecodeFile(path, nil, target)
 	if err != nil {
@@ -49,11 +43,18 @@ type Config interface {
 	IsValid() (bool, error)
 }
 
-type HeliosConfig struct {
-	Clusters []ClusterConfig `hcl:"cluster,block"`
+type HConfig struct{}
+
+func (cfg HConfig) IsValid() (bool, error) {
+	return false, fmt.Errorf("Validation Unimplemented")
 }
 
-func (cfg HeliosConfig) IsValid() (bool, error) {
+type HManifest struct {
+	HConfig
+	Clusters []HCluster `hcl:"cluster,block"`
+}
+
+func (cfg HManifest) IsValid() (bool, error) {
 	if len(cfg.Clusters) > 1 {
 		return false, fmt.Errorf("Config invalid... Multi-cluster is unsupported")
 	}
@@ -61,26 +62,25 @@ func (cfg HeliosConfig) IsValid() (bool, error) {
 	return true, nil
 }
 
-func (cfg HeliosConfig) ReadFile(path string) error {
-	return readConfigFile(path, &cfg)
+type HCluster struct {
+	HConfig
+	Name     string     `hcl:"name,label"`
+	Host     string     `hcl:"host"`
+	Port     int        `hcl:"port"`
+	Services []HService `hcl:"service,block"`
 }
 
-type ClusterConfig struct {
-	HeliosConfig
-	Name     string    `hcl:"name,label"`
-	Host     string    `hcl:"host"`
-	Port     int       `hcl:"port"`
-	Services []Service `hcl:"service,block"`
-}
-
-type Service struct {
+type HService struct {
+	HConfig
 	Name        string   `hcl:"name,label"`
+	ID          string   `hcl:"id,optional"`
 	Image       string   `hcl:"image,optional"`
 	Build       *Build   `hcl:"build,block"`
 	Command     string   `hcl:"command,optional"`
 	Volumes     []string `hcl:"volumes,optional"`
 	Environment []string `hcl:"environment,optional"`
 	Ports       []string `hcl:"ports,optional"`
+	DependsOn   []string `hcl:"depends_on,optional"`
 }
 
 type Build struct {
@@ -89,26 +89,84 @@ type Build struct {
 }
 
 type LeaderConfig struct {
-	HeliosConfig
+	HConfig
+	Name string `hcl:"name,label"`
+	Host string `hcl:"host"`
+	Port int    `hcl:"port"`
 }
+
 type WorkerConfig struct {
-	HeliosConfig
+	HConfig
 }
 
-func ParseConfig(confStr string) (*HeliosConfig, error) {
-	cfg := &HeliosConfig{}
-	err := parseConfig(confStr, cfg)
+func ParseManifest(confStr string) (*HManifest, error) {
+	manifest := &HManifest{}
+	err := parseConfig(confStr, manifest)
 	if err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return manifest, nil
 }
 
-func ReadConfigFile(path string) (*HeliosConfig, error) {
-	cfg := &HeliosConfig{}
-	err := readConfigFile(path, cfg)
+func ReadManifestFile(path string) (*HManifest, error) {
+	manifest := &HManifest{}
+	err := readConfigFile(path, manifest)
 	if err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return manifest, nil
+}
+
+func ParseClusterConfig(confStr string) (*HCluster, error) {
+	cluster := &HCluster{}
+	err := parseConfig(confStr, cluster)
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+func ReadClusterConfigFile(path string) (*HCluster, error) {
+	cluster := &HCluster{}
+	err := readConfigFile(path, cluster)
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+func ParseLeaderConfig(confStr string) (*LeaderConfig, error) {
+	leaderConf := &LeaderConfig{}
+	err := parseConfig(confStr, leaderConf)
+	if err != nil {
+		return nil, err
+	}
+	return leaderConf, nil
+}
+
+func ReadLeaderConfigFile(path string) (*LeaderConfig, error) {
+	leaderConf := &LeaderConfig{}
+	err := readConfigFile(path, leaderConf)
+	if err != nil {
+		return nil, err
+	}
+	return leaderConf, nil
+}
+
+func ParseWorkerConfig(confStr string) (*WorkerConfig, error) {
+	workerConf := &WorkerConfig{}
+	err := parseConfig(confStr, workerConf)
+	if err != nil {
+		return nil, err
+	}
+	return workerConf, nil
+}
+
+func ReadWorkerConfigFile(path string) (*WorkerConfig, error) {
+	workerConf := &WorkerConfig{}
+	err := readConfigFile(path, workerConf)
+	if err != nil {
+		return nil, err
+	}
+	return workerConf, nil
 }

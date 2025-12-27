@@ -1,4 +1,4 @@
-package test
+package unit
 
 import (
 	"fmt"
@@ -15,8 +15,8 @@ func TestReadFile(t *testing.T) {
 		panic(err)
 	}
 
-	path := filepath.Join(cwd, "config", "helios.hcl")
-	conf, err := model.ReadConfigFile(path)
+	path := filepath.Join(cwd, "helios.hcl")
+	conf, err := model.ReadClusterConfigFile(path)
 	if err != nil {
 		t.Errorf("TestConfigRead() => %s", err)
 	}
@@ -34,6 +34,7 @@ func TestClusterConfig(t *testing.T) {
 				volumes = ["/data"]
 				environment = ["ENV=test"]
 				ports = ["8080:80"]
+
 			}
 		}`,
 		`cluster "test" {
@@ -44,10 +45,10 @@ func TestClusterConfig(t *testing.T) {
 					context = "."
 					dockerfile = "Dockerfile"
 				}
-				command = "echo hello"
-				volumes = ["/data"]
-				environment = ["ENV=test"]
-				ports = ["8080:80"]
+			}
+			service "test2" {
+				image = "nginx:latest"
+				depends_on = ["test"]
 			}
 		}`,
 	}
@@ -55,7 +56,7 @@ func TestClusterConfig(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			t.Logf("\n%s", test)
-			conf, err := model.ParseConfig(test)
+			conf, err := model.ParseClusterConfig(test)
 			if err != nil {
 				t.Error(err)
 			}

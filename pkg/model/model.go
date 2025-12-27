@@ -1,24 +1,20 @@
 package model
 
-import "github.com/asynkron/protoactor-go/actor"
+import (
+	"context"
 
-type InstanceConfig struct{}
-
-type ContainerConfig struct {
-	Name     string
-	Image    string
-	Hostname string
-	Ports    []string
-	Build    *Build
-}
-type ContainerMeta struct {
-	ContainerConfig
-	Id string
-}
-
-type State struct{}
+	"github.com/asynkron/protoactor-go/actor"
+)
 
 type ActorService interface {
 	GetServiceName() string
 	Receive(actor.Context)
+}
+
+type ComputeController interface {
+	Authenticate(context.Context) error
+	CreateNode(ctx context.Context, n *Node) error
+	StartNode(ctx context.Context, n *Node) error
+	StopNode(ctx context.Context, n *Node) error
+	RemoveNode(ctx context.Context, n *Node) error
 }

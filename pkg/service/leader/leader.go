@@ -7,17 +7,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/KyloRilo/helios/pkg/controller/cluster"
+	"github.com/KyloRilo/helios/pkg/controller/actor"
 	"github.com/KyloRilo/helios/pkg/controller/consul"
 	"github.com/KyloRilo/helios/pkg/model"
-	"github.com/KyloRilo/helios/pkg/service/core"
+	"github.com/KyloRilo/helios/pkg/service/raft"
 )
 
 type LeaderService struct {
+	model.ActorService
 	ctx         context.Context
 	mtx         sync.RWMutex
 	consulCtrl  *consul.ConsulController
-	clusterCtrl *cluster.ClusterController
+	clusterCtrl *actor.ActorSysController
+	raft        raft.RaftService
 }
 
 func (l *LeaderService) SpinDown() {
@@ -35,30 +37,33 @@ func (l *LeaderService) Hello() {
 	}
 }
 
-func GenServiceMap(cfg *model.ClusterConfig) func() []model.ActorService {
-	return func() []model.ActorService {
-		return []model.ActorService{
-			core.InitCoreService(cfg),
-		}
-	}
-}
+// func GenServiceMap() func() []model.ActorService {
+// 	return func() []model.ActorService {
+// 		return []model.ActorService{
+// 			core.InitCoreService(),
+// 		}
+// 	}
+// }
 
 func NewLeader(ctx context.Context, configDir string) *LeaderService {
-	conf := &model.ClusterConfig{}
 	consulCtrl := consul.NewConsulController()
-	err := conf.ReadFile(configDir)
+	conf, err := model.ReadLeaderConfigFile(configDir)
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	if ok, err := conf.IsValid(); !ok {
 		log.Fatal(err)
 	}
 
 	return &LeaderService{
 		consulCtrl: consulCtrl,
-		clusterCtrl: cluster.NewClusterController(&cluster.ClusterConfig{
-			Consul:   consulCtrl.GetConfig(),
-			Name:     conf.Name,
-			Host:     conf.Host,
-			Port:     conf.Port,
-			SrvcGens: GenServiceMap(conf),
+		clusterCtrl: actor.NewActorSysController(&actor.ClusterConfig{
+			Consul: consulCtrl.GetConfig(),
+			Name:   conf.Name,
+			Host:   conf.Host,
+			Port:   conf.Port,
+			// SrvcGens: GenServiceMap(),
 		}),
 	}
 }

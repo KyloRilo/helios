@@ -5,37 +5,35 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/KyloRilo/helios/pkg/controller/docker"
 	"github.com/KyloRilo/helios/pkg/model"
 	"github.com/KyloRilo/helios/pkg/service/core"
 )
 
 type Launchpad struct {
-	core   core.CoreService
-	config *model.HeliosConfig
+	core     core.CoreService
+	manifest *model.HManifest
 }
 
 func (l *Launchpad) InitCluster(ctx context.Context) error {
-	cluster := l.config.Clusters[0]
+	cluster := l.manifest.Clusters[0]
 	fmt.Println("Creating Cluster: '", cluster.Name, "'")
-
-	for _, service := range cluster.Services {
-		fmt.Println("Creating Service: ", service.Name)
-		err := l.core.CreateService(ctx, service)
-		if err != nil {
-			return fmt.Errorf("Failed to create service '%s' => %s", service.Name, err)
-		}
-	}
-
-	return nil
+	l.core.PlanCluster(ctx, cluster)
+	return l.core.CreateCluster(ctx, cluster)
 }
 
-func NewLaunchpad(config *model.HeliosConfig) *Launchpad {
+func (l *Launchpad) DestroyCluster(ctx context.Context) {
+	cluster := l.manifest.Clusters[0]
+	fmt.Println("Tearing Down Cluster: '", cluster.Name, "'")
+	err := l.core.TeardownCluster(ctx, cluster)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func NewLaunchpad(manifest *model.HManifest) *Launchpad {
 	return &Launchpad{
-		config: config,
-		core: core.CoreService{
-			Docker: docker.InitDockerController(),
-		},
+		manifest: manifest,
+		core:     core.NewCoreService(),
 	}
 }
 
@@ -46,7 +44,7 @@ func main() {
 		path = "/helios/config/cluster.hcl"
 	}
 
-	conf, err := model.ReadConfigFile(path)
+	conf, err := model.ReadManifestFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -56,5 +54,10 @@ func main() {
 	}
 
 	pad := NewLaunchpad(conf)
-	pad.InitCluster(ctx)
+	err = pad.InitCluster(ctx)
+	defer pad.DestroyCluster(ctx)
+
+	if err != nil {
+		panic(err)
+	}
 }

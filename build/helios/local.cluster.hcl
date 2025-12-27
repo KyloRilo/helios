@@ -25,7 +25,7 @@ cluster "test-cluster" {
         image = "hashicorp/consul:latest"
         command = "agent -node=consul-client -config-dir=/consul/config -retry-join=consul-server-1 -retry-join=consul-server-2 -retry-join=consul-server-3"
         volumes = [ "./build/consul/client_config.json:/consul/config/config.json" ]
-        # depends_on = [ "consul-1", "consul-2", "consul-3" ]
+        depends_on = [ "consul-1", "consul-2", "consul-3" ]
     }
 
     service "leader" {
@@ -36,12 +36,12 @@ cluster "test-cluster" {
         
         ports = [ "6331:6330" ]
         environment = [
-            "CONSUL_HTTP_ADDR=consul-server-1:8500",
+            "CONSUL_HTTP_ADDR=consul-1:8500",
             "NODE_ID=1",
             "HELIOS_HOST=helios",
             "HELIOS_PORT=6330",
         ]
         
-        # depends_on = [ "consul-1", "consul-2", "consul-3" ]
+        depends_on = [ "consul-1", "consul-2", "consul-3" ]
     }
 }

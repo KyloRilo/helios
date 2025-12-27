@@ -1,4 +1,4 @@
-package cluster
+package actor
 
 import (
 	"log"
@@ -21,20 +21,20 @@ type ClusterConfig struct {
 	SrvcGens func() []model.ActorService
 }
 
-type ClusterController struct {
+type ActorSysController struct {
 	id      cluster.IdentityLookup
 	cluster *cluster.Cluster
 }
 
-func (cc ClusterController) Shutdown() {
+func (cc ActorSysController) Shutdown() {
 	cc.cluster.Shutdown(true)
 }
 
-func (cc ClusterController) Start() {
+func (cc ActorSysController) Start() {
 	cc.cluster.StartMember()
 }
 
-func (cc ClusterController) LogClusterEvents() {
+func (cc ActorSysController) LogClusterEvents() {
 	cc.cluster.ActorSystem.EventStream.Subscribe(func(evt interface{}) {
 		switch e := evt.(type) {
 		case *cluster.MemberJoinedEvent:
@@ -47,7 +47,7 @@ func (cc ClusterController) LogClusterEvents() {
 	})
 }
 
-func (ac ClusterController) LogMembers() {
+func (ac ActorSysController) LogMembers() {
 	for {
 		for _, member := range ac.cluster.MemberList.Members().Members() {
 			log.Printf("Discovered member: %s", member.Id)
@@ -59,7 +59,7 @@ func (ac ClusterController) LogMembers() {
 	}
 }
 
-func NewClusterController(cfg *ClusterConfig) *ClusterController {
+func NewActorSysController(cfg *ClusterConfig) *ActorSysController {
 	id := disthash.New()
 
 	config := remote.Configure(cfg.Host, cfg.Port)
@@ -78,7 +78,7 @@ func NewClusterController(cfg *ClusterConfig) *ClusterController {
 
 	clusterConf := cluster.Configure(cfg.Name, prvdr, id, config, cluster.WithKinds(kinds...))
 	cluster := cluster.New(sys, clusterConf)
-	return &ClusterController{
+	return &ActorSysController{
 		id:      id,
 		cluster: cluster,
 	}

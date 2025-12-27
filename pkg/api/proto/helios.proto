@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "github.com/KyloRilo/helios/pkg/api/proto";
+package proto;
+
+service Helios {
+    rpc HealthCheck (HealthCheckReq) returns (HealthCheckResp) {}
+}
+
+message HealthCheckReq {
+    string checkVal = 1;
+}
+
+message HealthCheckResp {
+    string checkVal = 1;
+}

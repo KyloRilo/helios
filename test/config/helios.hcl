@@ -1,36 +1,39 @@
 cluster "test-cluster" {
     host = "localhost"
     port = 6330
-    service "leader" {
+    service "test-build" {
         build {
             context = "."
             dockerfile = "build/docker/leader.Dockerfile"
         }
         
         ports = [ "6331:6330" ]
-        environment = [
-            "CONSUL_HTTP_ADDR=consul-server-1:8500",
-            "NODE_ID=1",
-            "HELIOS_HOST=helios",
-            "HELIOS_PORT=6330",
-        ]
+        environment = ["ENV_VAR=true"]
+        depends_on = [ "test-image-1", "test-image-2", "test-image-3" , "test-client"]
     }
 
-    service "consul-1" {
-        image = "hashicorp/consul:latest"
-        command = "agent -server -bootstrap-expect=3 -node=consul-1"
-        volumes = [ "./build/consul/server1_config.json:/consul/config/config.json" ]
+    service "test-image-1" {
+        image = ""
+        command = ""
+        volumes = [ "" ]
     }
 
-    service "consul-2" {
-        image = "hashicorp/consul:latest"
-        command = "agent -server -bootstrap-expect=3 -node=consul-2"
-        volumes = [ "./build/consul/server1_config.json:/consul/config/config.json" ]
+    service "test-image-2" {
+        image = ""
+        command = ""
+        volumes = [ "" ]
     }
 
-    service "consul-3" {
-        image = "hashicorp/consul:latest"
-        command = "agent -server -bootstrap-expect=3 -node=consul-3"
-        volumes = [ "./build/consul/server1_config.json:/consul/config/config.json" ]
+    service "test-image-3" {
+        image = ""
+        command = ""
+        volumes = [ "" ]
+    }
+
+    service "test-client" {
+        image = ""
+        command = ""
+        volumes = [ "" ]
+        depends_on = [ "test-image-1", "test-image-2", "test-image-3" ]
     }
 }
