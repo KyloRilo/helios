@@ -12,9 +12,9 @@ type ActorService interface {
 }
 
 type ComputeController interface {
-	Authenticate(context.Context) error
-	CreateNode(ctx context.Context, n *Node) error
-	StartNode(ctx context.Context, n *Node) error
-	StopNode(ctx context.Context, n *Node) error
-	RemoveNode(ctx context.Context, n *Node) error
+	Authenticate(context.Context) (interface{}, error)
+	CreateNode(ctx context.Context, n *Node) (interface{}, error)
+	StartNode(ctx context.Context, n *Node) (interface{}, error)
+	StopNode(ctx context.Context, n *Node) (interface{}, error)
+	RemoveNode(ctx context.Context, n *Node) (interface{}, error)
 }

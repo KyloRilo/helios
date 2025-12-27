@@ -73,18 +73,23 @@ func (d DockerController) logContainer(ctx context.Context, node *model.Node) er
 	return nil
 }
 
-func (d DockerController) Authenticate(context.Context) error {
-	return nil
+func (d DockerController) Authenticate(_ context.Context) (interface{}, error) {
+	var err error
+	if d.client, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
-func (d DockerController) CreateNode(ctx context.Context, node *model.Node) error {
+func (d DockerController) CreateNode(ctx context.Context, node *model.Node) (interface{}, error) {
 	meta := node.Meta
 	resp, err := d.client.ContainerCreate(ctx, &container.Config{
 		Image: meta.Image,
 		Cmd:   []string{"sleep", "infinity"},
 	}, nil, &network.NetworkingConfig{}, nil, meta.Name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(resp.Warnings) > 0 {
@@ -92,32 +97,21 @@ func (d DockerController) CreateNode(ctx context.Context, node *model.Node) erro
 	}
 
 	node.Meta.ID = resp.ID
-	return nil
+	return nil, nil
 }
 
-func (d DockerController) StartNode(ctx context.Context, node *model.Node) error {
-	return d.client.ContainerStart(ctx, node.Meta.ID, container.StartOptions{})
+func (d DockerController) StartNode(ctx context.Context, node *model.Node) (interface{}, error) {
+	return nil, d.client.ContainerStart(ctx, node.Meta.ID, container.StartOptions{})
 }
 
-func (d DockerController) StopNode(ctx context.Context, node *model.Node) error {
-	return d.client.ContainerStop(ctx, node.Meta.ID, container.StopOptions{})
+func (d DockerController) StopNode(ctx context.Context, node *model.Node) (interface{}, error) {
+	return nil, d.client.ContainerStop(ctx, node.Meta.ID, container.StopOptions{})
 }
 
-func (d DockerController) RemoveNode(ctx context.Context, node *model.Node) error {
-	return d.client.ContainerRemove(ctx, node.Meta.ID, container.RemoveOptions{Force: true})
+func (d DockerController) RemoveNode(ctx context.Context, node *model.Node) (interface{}, error) {
+	return nil, d.client.ContainerRemove(ctx, node.Meta.ID, container.RemoveOptions{Force: true})
 }
 
-func newDockerController() model.ComputeController {
-	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		panic(err)
-	}
-
-	ctrl := DockerController{
-		client:    client,
-		platform:  "",
-		authToken: "",
-	}
-
-	return ctrl
+func newDockerController() (model.ComputeController, error) {
+	return DockerController{}, nil
 }

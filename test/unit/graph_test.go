@@ -10,30 +10,47 @@ import (
 	"github.com/KyloRilo/helios/pkg/model"
 )
 
+func mockExecCtx() model.ExecCtx {
+	return model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+		Start: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+		Read: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+		Update: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+		Stop: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+		Delete: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return n, nil
+		},
+	}
+}
+
 // helper to make a node with a mock Create() function
-func mockNode(id string, fn func() error) *model.Node {
+func mockNode(id string, execCtx *model.ExecCtx) *model.Node {
+	var ctx model.ExecCtx = *execCtx
+	if execCtx == nil {
+		ctx = mockExecCtx()
+	}
+
 	return &model.Node{
+		ExecCtx: ctx,
 		Meta: model.NodeMeta{
 			Name: id,
 			ID:   id,
 		},
-		Exec: func(ctx context.Context, n *model.Node) error {
-			if fn != nil {
-				return fn()
-			}
-			return nil
-		},
-	}
-}
-
-func genExec() model.NodeExec {
-	return func(ctx context.Context, n *model.Node) error {
-		return n.Exec(ctx, n)
 	}
 }
 
 func TestLevelsSimple(t *testing.T) {
-	g := model.NewGraph(nil)
+	g := model.NewGraph()
 
 	// A → B → C
 	g.AddNode(mockNode("A", nil))
@@ -67,7 +84,7 @@ func TestLevelsSimple(t *testing.T) {
 }
 
 func TestLevelsParallelBatch(t *testing.T) {
-	g := model.NewGraph(nil)
+	g := model.NewGraph()
 
 	//   A
 	//  / \
@@ -103,7 +120,7 @@ func TestLevelsParallelBatch(t *testing.T) {
 }
 
 func TestLevelsDetectsCycle(t *testing.T) {
-	g := model.NewGraph(nil)
+	g := model.NewGraph()
 
 	g.AddNode(mockNode("A", nil))
 	g.AddNode(mockNode("B", nil))
@@ -122,40 +139,44 @@ func TestExecuteLevelsOrder(t *testing.T) {
 	var order []string
 	var idx int64
 
-	g := model.NewGraph(nil)
-
-	g.AddNode(&model.Node{
-		ID: "A",
-		Exec: func(ctx context.Context, n *model.Node) error {
+	g := model.NewGraph()
+	aNode := mockNode("A", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
 			atomic.AddInt64(&idx, 1)
 			order = append(order, "A")
-			return nil
+			return nil, nil
 		},
 	})
 
-	g.AddNode(&model.Node{
-		ID: "B",
-		Exec: func(ctx context.Context, n *model.Node) error {
+	bNode := mockNode("B", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
 			atomic.AddInt64(&idx, 1)
 			order = append(order, "B")
-			return nil
+			return nil, nil
 		},
 	})
 
-	g.AddNode(&model.Node{
-		ID: "C",
-		Exec: func(ctx context.Context, n *model.Node) error {
+	cNode := mockNode("C", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
 			atomic.AddInt64(&idx, 1)
 			order = append(order, "C")
-			return nil
+			return nil, nil
 		},
 	})
+
+	g.AddNode(aNode)
+	g.AddNode(bNode)
+	g.AddNode(cNode)
 
 	// A → B → C
 	g.AddDependency("B", "A")
 	g.AddDependency("C", "B")
 
-	if err := g.ExecLevels(t.Context(), genExec()); err != nil {
+	genExec := func(ctx model.ExecCtx) model.ExecFunc {
+		return ctx.Create
+	}
+
+	if err := g.ExecLevels(t.Context(), genExec); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -169,16 +190,25 @@ func TestExecuteLevelsOrder(t *testing.T) {
 }
 
 func TestExecuteLevelsStopsOnError(t *testing.T) {
-	g := model.NewGraph(nil)
+	g := model.NewGraph()
+	bNode := mockNode("B", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			return nil, errors.New("boom")
+		},
+	})
 
-	g.AddNode(mockNode("A", func() error { return nil }))
-	g.AddNode(mockNode("B", func() error { return errors.New("boom") }))
-	g.AddNode(mockNode("C", func() error { return nil }))
+	g.AddNode(mockNode("A", nil))
+	g.AddNode(bNode)
+	g.AddNode(mockNode("C", nil))
 
 	g.AddDependency("B", "A")
 	g.AddDependency("C", "B") // should NOT run if B fails
 
-	err := g.ExecLevels(t.Context(), genExec())
+	genExec := func(ctx model.ExecCtx) model.ExecFunc {
+		return ctx.Create
+	}
+
+	err := g.ExecLevels(t.Context(), genExec)
 	if err == nil {
 		t.Fatal("expected error from B, got nil")
 	}
@@ -187,40 +217,53 @@ func TestExecuteLevelsStopsOnError(t *testing.T) {
 func TestExecuteParallelBehavior(t *testing.T) {
 	var count int64
 
-	g := model.NewGraph(nil)
+	g := model.NewGraph()
 
 	// A then B+C in parallel
-	g.AddNode(mockNode("A", func() error {
-		atomic.AddInt64(&count, 1)
-		return nil
-	}))
+	aNode := mockNode("A", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			atomic.AddInt64(&count, 1)
+			time.Sleep(5 * time.Millisecond)
+			return nil, nil
+		},
+	})
 
-	g.AddNode(mockNode("B", func() error {
-		time.Sleep(50 * time.Millisecond)
-		atomic.AddInt64(&count, 1)
-		return nil
-	}))
+	bNode := mockNode("B", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			atomic.AddInt64(&count, 1)
+			time.Sleep(5 * time.Millisecond)
+			return nil, nil
+		},
+	})
 
-	g.AddNode(mockNode("C", func() error {
-		time.Sleep(50 * time.Millisecond)
-		atomic.AddInt64(&count, 1)
-		return nil
-	}))
+	cNode := mockNode("C", &model.ExecCtx{
+		Create: func(ctx context.Context, n *model.Node) (interface{}, error) {
+			atomic.AddInt64(&count, 1)
+			time.Sleep(5 * time.Millisecond)
+			return nil, nil
+		},
+	})
+
+	g.AddNode(aNode)
+	g.AddNode(bNode)
+	g.AddNode(cNode)
 
 	g.AddDependency("B", "A")
 	g.AddDependency("C", "A")
 
+	genExec := func(ctx model.ExecCtx) model.ExecFunc {
+		return ctx.Create
+	}
+
 	start := time.Now()
-	err := g.ExecLevels(t.Context(), genExec())
+	err := g.ExecLevels(t.Context(), genExec)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	elapsed := time.Since(start)
 
-	// B and C each sleep 50ms but run in parallel,
-	// so execution should NOT take ~100ms, but ~50ms.
-	if elapsed > 80*time.Millisecond {
-		t.Fatalf("expected parallel execution (≈50ms), got %v", elapsed)
+	if elapsed >= 15*time.Millisecond {
+		t.Fatalf("expected parallel execution (up to 10ms), got %v", elapsed)
 	}
 
 	if atomic.LoadInt64(&count) != 3 {

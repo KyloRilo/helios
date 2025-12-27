@@ -2,42 +2,94 @@ package core
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/KyloRilo/helios/pkg/controller/compute"
 	"github.com/KyloRilo/helios/pkg/model"
 )
 
 type CoreService struct {
-	CompController model.ComputeController
-	ServiceGraph   *model.Graph
+	Cluster    *model.HeliosCluster
+	SessionMap map[string]model.ComputeController
 }
 
-func (core *CoreService) PlanCluster(ctx context.Context, cfg model.HCluster) {
-	core.ServiceGraph = model.NewGraph(&cfg)
+func (cs *CoreService) InitCluster(ctx context.Context, conf *model.HCluster, compStub model.ComputeController) error {
+	cs.Cluster = model.NewHeliosCluster(*conf)
+	cs.Cluster.Init(func(svc model.HService) model.ExecCtx {
+		ctrl, err := compute.NewComputeController(svc.Image, &compStub)
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = ctrl.Authenticate(ctx)
+		if err != nil {
+			panic(err)
+		}
+
+		cs.SessionMap[svc.Name] = ctrl
+		return model.ExecCtx{
+			Create: ctrl.CreateNode,
+			Start:  ctrl.StartNode,
+			Read:   nil,
+			Update: nil,
+			Stop:   ctrl.StopNode,
+			Delete: ctrl.RemoveNode,
+		}
+	})
+
+	return nil
 }
 
-func (core *CoreService) CreateCluster(ctx context.Context, cfg model.HCluster) error {
-	core.ServiceGraph.UpdateLevels(core.CompController.CreateNode)
-	return core.ServiceGraph.ExecLevels(ctx)
+func (cs *CoreService) ValidateCluster(_ *model.HCluster) error {
+	if cs.Cluster == nil {
+		return fmt.Errorf("Cluster found nil. Initialize cluster before proceeding")
+	}
+
+	return cs.Cluster.Validate()
 }
 
-func (core *CoreService) StartCluster(ctx context.Context, cfg model.HCluster) error {
-	core.ServiceGraph.UpdateLevels(core.CompController.StartNode)
-	return core.ServiceGraph.ExecLevels(ctx)
+func (cs *CoreService) CreateCluster(ctx context.Context, newConf *model.HCluster) error {
+	err := cs.ValidateCluster(newConf)
+	if err != nil {
+		return err
+	}
+
+	return cs.Cluster.Create(ctx)
 }
 
-func (core *CoreService) StopCluster(ctx context.Context, cfg model.HCluster) error {
-	core.ServiceGraph.UpdateLevels(core.CompController.StopNode)
-	return core.ServiceGraph.ExecLevels(ctx)
+func (cs *CoreService) StartCluster(ctx context.Context, newConf *model.HCluster) error {
+	err := cs.ValidateCluster(newConf)
+	if err != nil {
+		return err
+	}
+
+	return cs.Cluster.Start(ctx)
 }
 
-func (core *CoreService) TeardownCluster(ctx context.Context, cfg model.HCluster) error {
-	core.ServiceGraph.UpdateLevels(core.CompController.RemoveNode)
-	return core.ServiceGraph.ExecLevels(ctx)
+func (cs *CoreService) PlanCluster(ctx context.Context, _ *model.HCluster) error {
+	return cs.Cluster.Validate()
+}
+
+func (cs *CoreService) StopCluster(ctx context.Context, newConf *model.HCluster) error {
+	err := cs.ValidateCluster(newConf)
+	if err != nil {
+		return err
+	}
+
+	return cs.Cluster.Stop(ctx)
+}
+
+func (cs *CoreService) TeardownCluster(ctx context.Context, newConf *model.HCluster) error {
+	err := cs.ValidateCluster(newConf)
+	if err != nil {
+		return err
+	}
+
+	return cs.Cluster.Teardown(ctx)
 }
 
 func NewCoreService() CoreService {
 	return CoreService{
-		CompController: compute.NewComputeController(compute.DOCKER),
+		SessionMap: make(map[string]model.ComputeController),
 	}
 }

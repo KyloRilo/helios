@@ -7,11 +7,41 @@ import (
 	"sync"
 )
 
+type NodeStatus int
+
+const (
+	NodeStateUndefined NodeStatus = iota
+	NodeStateCreating
+	NodeStateRunning
+	NodeStateStopped
+	NodeStateError
+)
+
+type NodeState struct {
+	Status NodeStatus
+}
+
 type NodeMeta HService
-type NodeExec func(ctx context.Context, n *Node) error
+type ExecFunc func(ctx context.Context, n *Node) (interface{}, error)
+type ExecCtx struct {
+	Create ExecFunc
+	Start  ExecFunc
+	Read   ExecFunc
+	Update ExecFunc
+	Stop   ExecFunc
+	Delete ExecFunc
+}
+
 type Node struct {
-	Meta NodeMeta
-	Exec NodeExec
+	Meta    NodeMeta
+	State   NodeState
+	ExecCtx ExecCtx
+}
+
+func NewNode(meta NodeMeta) *Node {
+	return &Node{
+		Meta: meta,
+	}
 }
 
 type Graph struct {
@@ -20,26 +50,12 @@ type Graph struct {
 	dependents   map[string][]string
 }
 
-func NewGraph(cfg *HCluster) *Graph {
-	graph := &Graph{
+func NewGraph() Graph {
+	return Graph{
 		nodes:        map[string]*Node{},
 		dependencies: map[string][]string{},
 		dependents:   map[string][]string{},
 	}
-
-	if cfg != nil {
-		for _, srvc := range cfg.Services {
-			graph.AddNode(&Node{
-				Meta: NodeMeta(srvc),
-			})
-
-			for _, dep := range srvc.DependsOn {
-				graph.AddDependency(srvc.Name, dep)
-			}
-		}
-	}
-
-	return graph
 }
 
 func (g *Graph) IsEmpty() bool {
@@ -55,6 +71,10 @@ func (g *Graph) AddNode(n *Node) {
 	if _, ok := g.dependents[name]; !ok {
 		g.dependents[name] = []string{}
 	}
+}
+
+func (g *Graph) GetNode(nodeKey string) *Node {
+	return g.nodes[nodeKey]
 }
 
 func (g *Graph) AddDependency(nodeKey, dependsKey string) {
@@ -106,10 +126,10 @@ func (g *Graph) Levels() ([][]string, error) {
 	return levels, nil
 }
 
-func (g *Graph) UpdateLevels(execFunc NodeExec) error {
-	if g.IsEmpty() {
-		return errors.New("Unable to update, graph found empty")
-	}
+func (g *Graph) ExecLevels(ctx context.Context, genFunc func(ExecCtx) ExecFunc) error {
+	var levelErr error
+	var group sync.WaitGroup
+	defer group.Done()
 
 	levels, err := g.Levels()
 	if err != nil {
@@ -117,40 +137,18 @@ func (g *Graph) UpdateLevels(execFunc NodeExec) error {
 	}
 
 	for _, level := range levels {
-		for _, id := range level {
-			node := g.nodes[id]
-			node.Exec = execFunc
-		}
-	}
-
-	return nil
-}
-
-func (g *Graph) ExecLevels(ctx context.Context) error {
-	var group sync.WaitGroup
-	var levelErr error
-	levels, err := g.Levels()
-	if err != nil {
-		return err
-	}
-
-	for i, level := range levels {
-		fmt.Printf("=== executing level %d (parallel batch size=%d): %v\n", i, len(level), level)
 		errs := make(chan error, len(level))
 		for _, id := range level {
-			node := g.nodes[id]
+			node := g.GetNode(id)
+			execFunc := genFunc(node.ExecCtx)
 			group.Add(1)
-			go func() {
-				defer group.Done()
-				if err := node.Exec(ctx, node); err != nil {
-					errs <- fmt.Errorf("Node '%s': %w", node.Meta.Name, err)
-				}
-			}()
+			if _, err := execFunc(ctx, node); err != nil {
+				return fmt.Errorf("Node '%s': %w", node.Meta.Name, err)
+			}
 		}
 
 		group.Wait()
 		close(errs)
-
 		for e := range errs {
 			levelErr = fmt.Errorf("%v; %w", levelErr, e)
 		}
