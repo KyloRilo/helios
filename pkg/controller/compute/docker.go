@@ -15,13 +15,13 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 )
 
-type DockerController struct {
+type DockerCtrl struct {
 	client    *client.Client
 	platform  string
 	authToken string
 }
 
-func (d DockerController) pullImage(ctx context.Context, img string) error {
+func (d DockerCtrl) pullImage(ctx context.Context, img string) error {
 	reader, err := d.client.ImagePull(
 		ctx,
 		img,
@@ -39,7 +39,7 @@ func (d DockerController) pullImage(ctx context.Context, img string) error {
 	return nil
 }
 
-func (d DockerController) buildImage(ctx context.Context, dockerfile string) error {
+func (d DockerCtrl) buildImage(ctx context.Context, dockerfile string) error {
 	resp, err := d.client.ImageBuild(ctx, nil, types.ImageBuildOptions{
 		Dockerfile: dockerfile,
 		Remove:     true,
@@ -53,7 +53,7 @@ func (d DockerController) buildImage(ctx context.Context, dockerfile string) err
 	return nil
 }
 
-func (d DockerController) logContainer(ctx context.Context, node *model.Node) error {
+func (d DockerCtrl) logContainer(ctx context.Context, node *model.Node) error {
 	statusCh, errCh := d.client.ContainerWait(ctx, node.Meta.ID, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
@@ -73,7 +73,7 @@ func (d DockerController) logContainer(ctx context.Context, node *model.Node) er
 	return nil
 }
 
-func (d DockerController) Authenticate(_ context.Context) (interface{}, error) {
+func (d DockerCtrl) Authenticate(_ context.Context) (interface{}, error) {
 	var err error
 	if d.client, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation()); err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (d DockerController) Authenticate(_ context.Context) (interface{}, error) {
 	return nil, nil
 }
 
-func (d DockerController) CreateNode(ctx context.Context, node *model.Node) (interface{}, error) {
+func (d DockerCtrl) CreateNode(ctx context.Context, node *model.Node) (interface{}, error) {
 	meta := node.Meta
 	resp, err := d.client.ContainerCreate(ctx, &container.Config{
 		Image: meta.Image,
@@ -100,18 +100,18 @@ func (d DockerController) CreateNode(ctx context.Context, node *model.Node) (int
 	return nil, nil
 }
 
-func (d DockerController) StartNode(ctx context.Context, node *model.Node) (interface{}, error) {
+func (d DockerCtrl) StartNode(ctx context.Context, node *model.Node) (interface{}, error) {
 	return nil, d.client.ContainerStart(ctx, node.Meta.ID, container.StartOptions{})
 }
 
-func (d DockerController) StopNode(ctx context.Context, node *model.Node) (interface{}, error) {
+func (d DockerCtrl) StopNode(ctx context.Context, node *model.Node) (interface{}, error) {
 	return nil, d.client.ContainerStop(ctx, node.Meta.ID, container.StopOptions{})
 }
 
-func (d DockerController) RemoveNode(ctx context.Context, node *model.Node) (interface{}, error) {
+func (d DockerCtrl) RemoveNode(ctx context.Context, node *model.Node) (interface{}, error) {
 	return nil, d.client.ContainerRemove(ctx, node.Meta.ID, container.RemoveOptions{Force: true})
 }
 
-func newDockerController() (model.ComputeController, error) {
-	return DockerController{}, nil
+func newDockerCtrl() ComputeController {
+	return DockerCtrl{}
 }

@@ -1,8 +1,6 @@
 package model
 
 import (
-	"context"
-
 	"github.com/asynkron/protoactor-go/actor"
 )
 
@@ -11,10 +9,32 @@ type ActorService interface {
 	Receive(actor.Context)
 }
 
-type ComputeController interface {
-	Authenticate(context.Context) (interface{}, error)
-	CreateNode(ctx context.Context, n *Node) (interface{}, error)
-	StartNode(ctx context.Context, n *Node) (interface{}, error)
-	StopNode(ctx context.Context, n *Node) (interface{}, error)
-	RemoveNode(ctx context.Context, n *Node) (interface{}, error)
+type BaseService struct {
+	name string
+	ctx  actor.Context
+}
+
+func (bs BaseService) GetServiceName() string {
+	return bs.name
+}
+
+func (bs BaseService) Receive(actx actor.Context) {
+	// Default no-op
+}
+
+func NewBaseActorService(name string) ActorService {
+	return BaseService{
+		name: name,
+	}
+}
+
+type CloudProvider string
+
+const (
+	GCP CloudProvider = "gcp"
+	AWS CloudProvider = "aws"
+)
+
+type RegisterServiceReq struct {
+	HService
 }

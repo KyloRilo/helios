@@ -18,13 +18,13 @@ func (l *Launchpad) InitCluster(ctx context.Context) error {
 	cluster := l.manifest.Clusters[0]
 	fmt.Println("Creating Cluster: '", cluster.Name, "'")
 	l.PlanCluster(ctx, &cluster)
-	return l.CreateCluster(ctx, &cluster)
+	return l.CreateCluster(ctx)
 }
 
 func (l *Launchpad) DestroyCluster(ctx context.Context) {
 	cluster := l.manifest.Clusters[0]
 	fmt.Println("Tearing Down Cluster: '", cluster.Name, "'")
-	err := l.TeardownCluster(ctx, &cluster)
+	err := l.TeardownCluster(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func (l *Launchpad) DestroyCluster(ctx context.Context) {
 
 func NewLaunchpad(manifest *model.HManifest) *Launchpad {
 	return &Launchpad{
-		CoreService: core.NewCoreService(),
+		CoreService: core.NewCoreService(nil),
 		manifest:    manifest,
 	}
 }

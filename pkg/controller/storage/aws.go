@@ -1,4 +1,4 @@
-package cloud
+package storage
 
 import (
 	"bytes"
@@ -13,14 +13,14 @@ import (
 )
 
 type awsStorageService struct {
-	CloudStorageService
+	BaseStorageService
 	s3Client   *s3.Client
 	roleArn    string
 	region     string
 	externalId string
 }
 
-func (ctrl awsStorageService) Init(ctx context.Context, conf CloudConfig) error {
+func (ctrl awsStorageService) Init(ctx context.Context) error {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(ctrl.region),
 		config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {

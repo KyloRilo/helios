@@ -44,4 +44,20 @@ cluster "test-cluster" {
         
         depends_on = [ "consul-1", "consul-2", "consul-3" ]
     }
+    
+    service "worker" {
+        build {
+            context = "."
+            dockerfile = "build/docker/worker.Dockerfile"
+        }
+        
+        environment = [
+            "CONSUL_HTTP_ADDR=consul-1:8500",
+            "NODE_ID=2",
+            "HELIOS_HOST=helios",
+            "HELIOS_PORT=6330",
+        ]
+        
+        depends_on = [ "consul-1", "consul-2", "consul-3", "leader" ]
+    }
 }

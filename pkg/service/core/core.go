@@ -6,90 +6,93 @@ import (
 
 	"github.com/KyloRilo/helios/pkg/controller/compute"
 	"github.com/KyloRilo/helios/pkg/model"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 type CoreService struct {
-	Cluster    *model.HeliosCluster
-	SessionMap map[string]model.ComputeController
+	model.ActorService
+	compScaler  compute.ComputeController
+	conf        *model.HCluster
+	stateMgrRef *actor.PID
 }
 
-func (cs *CoreService) InitCluster(ctx context.Context, conf *model.HCluster, compStub model.ComputeController) error {
-	cs.Cluster = model.NewHeliosCluster(*conf)
-	cs.Cluster.Init(func(svc model.HService) model.ExecCtx {
-		ctrl, err := compute.NewComputeController(svc.Image, &compStub)
-		if err != nil {
-			panic(err)
-		}
+func (cs *CoreService) SetConfig(conf *model.HCluster) {
+	cs.conf = conf
+}
 
-		_, err = ctrl.Authenticate(ctx)
-		if err != nil {
-			panic(err)
-		}
+func (cs *CoreService) GetConfig() *model.HCluster {
+	return cs.conf
+}
 
-		cs.SessionMap[svc.Name] = ctrl
-		return model.ExecCtx{
-			Create: ctrl.CreateNode,
-			Start:  ctrl.StartNode,
-			Read:   nil,
-			Update: nil,
-			Stop:   ctrl.StopNode,
-			Delete: ctrl.RemoveNode,
-		}
-	})
+func (cs *CoreService) ValidateCluster() error {
+	if cs.conf == nil {
+		return fmt.Errorf("No cluster config provided")
+	}
+
+	valid, err := cs.conf.IsValid()
+	if err != nil {
+		return fmt.Errorf("Error validating cluster config: %s", err)
+	}
+
+	if !valid {
+		return fmt.Errorf("Cluster config is invalid")
+	}
 
 	return nil
 }
 
-func (cs *CoreService) ValidateCluster(_ *model.HCluster) error {
-	if cs.Cluster == nil {
-		return fmt.Errorf("Cluster found nil. Initialize cluster before proceeding")
-	}
-
-	return cs.Cluster.Validate()
-}
-
-func (cs *CoreService) CreateCluster(ctx context.Context, newConf *model.HCluster) error {
-	err := cs.ValidateCluster(newConf)
+func (cs *CoreService) CreateCluster(ctx context.Context) error {
+	err := cs.ValidateCluster()
 	if err != nil {
 		return err
 	}
 
-	return cs.Cluster.Create(ctx)
+	return nil
 }
 
-func (cs *CoreService) StartCluster(ctx context.Context, newConf *model.HCluster) error {
-	err := cs.ValidateCluster(newConf)
+func (cs *CoreService) StartCluster(ctx context.Context) error {
+	err := cs.ValidateCluster()
 	if err != nil {
 		return err
 	}
 
-	return cs.Cluster.Start(ctx)
+	return nil
 }
 
 func (cs *CoreService) PlanCluster(ctx context.Context, _ *model.HCluster) error {
-	return cs.Cluster.Validate()
+	return nil
 }
 
-func (cs *CoreService) StopCluster(ctx context.Context, newConf *model.HCluster) error {
-	err := cs.ValidateCluster(newConf)
+func (cs *CoreService) StopCluster(ctx context.Context) error {
+	err := cs.ValidateCluster()
 	if err != nil {
 		return err
 	}
 
-	return cs.Cluster.Stop(ctx)
+	return nil
 }
 
-func (cs *CoreService) TeardownCluster(ctx context.Context, newConf *model.HCluster) error {
-	err := cs.ValidateCluster(newConf)
+func (cs *CoreService) TeardownCluster(ctx context.Context) error {
+	err := cs.ValidateCluster()
 	if err != nil {
 		return err
 	}
 
-	return cs.Cluster.Teardown(ctx)
+	return nil
 }
 
-func NewCoreService() CoreService {
+func (cs CoreService) Receive(actx actor.Context) {
+	switch actx.Message().(type) {
+	case *actor.Started:
+		fmt.Println("Started Core ActorService")
+
+	}
+}
+
+func NewCoreService(conf *model.HCluster) CoreService {
 	return CoreService{
-		SessionMap: make(map[string]model.ComputeController),
+		ActorService: model.NewBaseActorService("Core"),
+		conf:         conf,
+		compScaler:   compute.NewComputeController(nil),
 	}
 }

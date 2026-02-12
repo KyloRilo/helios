@@ -9,7 +9,7 @@ import (
 
 func TestComputeLifcycle(t *testing.T) {
 	ctx := t.Context()
-	exec := func(ctrl model.ComputeController, node *model.Node) error {
+	exec := func(ctrl compute.ComputeController, node *model.Node) error {
 		_, err := ctrl.CreateNode(ctx, node)
 		if err != nil {
 			t.Errorf("Failed to Create Node '%s' => %s", node.Meta.Name, err)
@@ -44,11 +44,7 @@ func TestComputeLifcycle(t *testing.T) {
 		},
 	} {
 		go func() {
-			ctrl, err := compute.NewComputeController(node.Meta.Image, nil)
-			if err != nil {
-				t.Errorf("Failed to create compute controller for image '%s' => %s", node.Meta.Image, err)
-			}
-
+			ctrl := compute.NewComputeController(nil)
 			exec(ctrl, node)
 		}()
 	}

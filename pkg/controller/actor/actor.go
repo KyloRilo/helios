@@ -23,6 +23,7 @@ type ClusterConfig struct {
 
 type ActorSysController struct {
 	id      cluster.IdentityLookup
+	ctx     *actor.RootContext
 	cluster *cluster.Cluster
 }
 
@@ -79,6 +80,7 @@ func NewActorSysController(cfg *ClusterConfig) *ActorSysController {
 	clusterConf := cluster.Configure(cfg.Name, prvdr, id, config, cluster.WithKinds(kinds...))
 	cluster := cluster.New(sys, clusterConf)
 	return &ActorSysController{
+		ctx:     sys.Root,
 		id:      id,
 		cluster: cluster,
 	}

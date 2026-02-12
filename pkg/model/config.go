@@ -70,6 +70,32 @@ type HCluster struct {
 	Services []HService `hcl:"service,block"`
 }
 
+func (cfg HCluster) IsValid() (bool, error) {
+	if cfg.Name == "" {
+		return false, fmt.Errorf("Cluster name is required")
+	}
+
+	if cfg.Host == "" {
+		return false, fmt.Errorf("Cluster host is required")
+	}
+
+	if cfg.Port == 0 {
+		return false, fmt.Errorf("Cluster port is required")
+	}
+
+	if len(cfg.Services) == 0 {
+		return false, fmt.Errorf("At least one service is required")
+	}
+
+	for _, svc := range cfg.Services {
+		if ok, err := svc.IsValid(); !ok {
+			return false, fmt.Errorf("Service %s is invalid => %s", svc.Name, err)
+		}
+	}
+
+	return true, nil
+}
+
 type HService struct {
 	HConfig
 	Name        string   `hcl:"name,label"`
@@ -81,6 +107,18 @@ type HService struct {
 	Environment []string `hcl:"environment,optional"`
 	Ports       []string `hcl:"ports,optional"`
 	DependsOn   []string `hcl:"depends_on,optional"`
+}
+
+func (svc HService) IsValid() (bool, error) {
+	if svc.Image == "" && svc.Build == nil {
+		return false, fmt.Errorf("Service %s must have either an image or build configuration", svc.Name)
+	}
+
+	if svc.Image != "" && svc.Build != nil {
+		return false, fmt.Errorf("Service %s cannot have both image and build configuration", svc.Name)
+	}
+
+	return true, nil
 }
 
 type Build struct {
@@ -123,6 +161,11 @@ func ParseClusterConfig(confStr string) (*HCluster, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if ok, err := cluster.IsValid(); !ok {
+		return nil, fmt.Errorf("Cluster config is invalid => %s", err)
+	}
+
 	return cluster, nil
 }
 

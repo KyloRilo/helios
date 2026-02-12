@@ -9,8 +9,8 @@ import (
 
 	"github.com/KyloRilo/helios/pkg/controller/actor"
 	"github.com/KyloRilo/helios/pkg/controller/consul"
+	"github.com/KyloRilo/helios/pkg/controller/raft"
 	"github.com/KyloRilo/helios/pkg/model"
-	"github.com/KyloRilo/helios/pkg/service/raft"
 )
 
 type LeaderService struct {

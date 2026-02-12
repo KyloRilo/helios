@@ -15,8 +15,8 @@ func TestReadFile(t *testing.T) {
 		panic(err)
 	}
 
-	path := filepath.Join(cwd, "helios.hcl")
-	conf, err := model.ReadClusterConfigFile(path)
+	path := filepath.Join(cwd, "../../bin/helios/local.cluster.hcl")
+	conf, err := model.ReadManifestFile(path)
 	if err != nil {
 		t.Errorf("TestConfigRead() => %s", err)
 	}
@@ -28,25 +28,24 @@ func TestClusterConfig(t *testing.T) {
 		`cluster "test" {
 			host = "test"
 			port = "6300"
-			service "test" {
+			node "docker" "test" {
 				image = ""
 				command = "echo hello"
 				volumes = ["/data"]
 				environment = ["ENV=test"]
 				ports = ["8080:80"]
-
 			}
 		}`,
 		`cluster "test" {
 			host = "test"
 			port = "6300"
-			service "test" {
+			node "docker" "test" {
 				build {
 					context = "."
 					dockerfile = "Dockerfile"
 				}
 			}
-			service "test2" {
+			node "docker" "test2" {
 				image = "nginx:latest"
 				depends_on = ["test"]
 			}
