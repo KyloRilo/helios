@@ -1,7 +1,7 @@
 
 
 default: 
-	go mod tidy
+# 	go mod tidy
 	go build -v ./...
 	go test ./test/unit/... && go test ./test/config/...
 

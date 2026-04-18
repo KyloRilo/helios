@@ -34,7 +34,3 @@ const (
 	GCP CloudProvider = "gcp"
 	AWS CloudProvider = "aws"
 )
-
-type RegisterServiceReq struct {
-	HService
-}

@@ -10,4 +10,11 @@ A POC of a docker orchestrator.
 * System should be able to self heal in the event of a node's failure
 
 ## Build
-Spin up the cluster with make via `make cluster-up`.
+
+
+## Technologies
+
+[Proto.Actor](https://github.com/asynkron/protoactor-go)
+[Raft](https://github.com/hashicorp/raft)
+[Consul](https://developer.hashicorp.com/consul)
+[gRPC](https://grpc.io/)

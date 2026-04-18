@@ -17,7 +17,6 @@ type Launchpad struct {
 func (l *Launchpad) InitCluster(ctx context.Context) error {
 	cluster := l.manifest.Clusters[0]
 	fmt.Println("Creating Cluster: '", cluster.Name, "'")
-	l.PlanCluster(ctx, &cluster)
 	return l.CreateCluster(ctx)
 }
 
@@ -27,13 +26,6 @@ func (l *Launchpad) DestroyCluster(ctx context.Context) {
 	err := l.TeardownCluster(ctx)
 	if err != nil {
 		panic(err)
-	}
-}
-
-func NewLaunchpad(manifest *model.HManifest) *Launchpad {
-	return &Launchpad{
-		CoreService: core.NewCoreService(nil),
-		manifest:    manifest,
 	}
 }
 
@@ -53,9 +45,12 @@ func main() {
 		panic(err)
 	}
 
-	pad := NewLaunchpad(conf)
-	err = pad.InitCluster(ctx)
-	defer pad.DestroyCluster(ctx)
+	lp := &Launchpad{
+		CoreService: core.NewCoreService(ctx, core.CoreArgs{}),
+		manifest:    conf,
+	}
+	err = lp.InitCluster(ctx)
+	defer lp.DestroyCluster(ctx)
 
 	if err != nil {
 		panic(err)

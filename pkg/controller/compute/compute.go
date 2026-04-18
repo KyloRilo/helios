@@ -4,15 +4,15 @@ import (
 	"context"
 	"strings"
 
-	"github.com/KyloRilo/helios/pkg/model"
+	"github.com/KyloRilo/helios/pkg/model/node"
 )
 
 type ComputeController interface {
-	Authenticate(context.Context) (interface{}, error)
-	CreateNode(ctx context.Context, n *model.Node) (interface{}, error)
-	StartNode(ctx context.Context, n *model.Node) (interface{}, error)
-	StopNode(ctx context.Context, n *model.Node) (interface{}, error)
-	RemoveNode(ctx context.Context, n *model.Node) (interface{}, error)
+	CreateNode(context.Context, *node.Node) (*node.CreateNodeResp, error)
+	StartNode(context.Context, *node.Node) (*node.StartNodeResp, error)
+	ListNodes(context.Context) (*node.ListNodesResp, error)
+	StopNode(context.Context, *node.Node) (*node.StopNodeResp, error)
+	RemoveNode(context.Context, *node.Node) (*node.RmNodeResp, error)
 }
 
 func isECR(image string) bool {
@@ -33,11 +33,26 @@ func isDockerHub(image string) bool {
 	return !strings.Contains(image[:firstSlash], ".")
 }
 
-func NewComputeController(stub *ComputeController) ComputeController {
-	ctrl := *stub
-	if ctrl == nil {
-		ctrl = newDockerCtrl()
-	}
+type Provider string
 
-	return ctrl
+const (
+	ProviderDocker Provider = "docker"
+	ProviderECR    Provider = "ecr"
+)
+
+type ControllerArgs struct {
+	Stub *ComputeController
+	// DockerCreds *DockerCreds
+	AwsCreds *AwsCreds
+}
+
+func NewComputeController(ctx context.Context, args ControllerArgs, stub *ComputeController) (ComputeController, error) {
+	switch {
+	case args.Stub != nil:
+		return *args.Stub, nil
+	case args.AwsCreds != nil:
+		return newAwsCtrl(ctx, *args.AwsCreds), nil
+	default:
+		return newDockerCtrl(ctx)
+	}
 }

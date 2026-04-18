@@ -65,22 +65,12 @@ func (cfg HManifest) IsValid() (bool, error) {
 type HCluster struct {
 	HConfig
 	Name     string     `hcl:"name,label"`
-	Host     string     `hcl:"host"`
-	Port     int        `hcl:"port"`
 	Services []HService `hcl:"service,block"`
 }
 
 func (cfg HCluster) IsValid() (bool, error) {
 	if cfg.Name == "" {
 		return false, fmt.Errorf("Cluster name is required")
-	}
-
-	if cfg.Host == "" {
-		return false, fmt.Errorf("Cluster host is required")
-	}
-
-	if cfg.Port == 0 {
-		return false, fmt.Errorf("Cluster port is required")
 	}
 
 	if len(cfg.Services) == 0 {
@@ -98,15 +88,16 @@ func (cfg HCluster) IsValid() (bool, error) {
 
 type HService struct {
 	HConfig
-	Name        string   `hcl:"name,label"`
-	ID          string   `hcl:"id,optional"`
-	Image       string   `hcl:"image,optional"`
-	Build       *Build   `hcl:"build,block"`
-	Command     string   `hcl:"command,optional"`
-	Volumes     []string `hcl:"volumes,optional"`
-	Environment []string `hcl:"environment,optional"`
-	Ports       []string `hcl:"ports,optional"`
-	DependsOn   []string `hcl:"depends_on,optional"`
+	ID          string
+	Name        string            `hcl:"name,label"`
+	Image       string            `hcl:"image,optional"`
+	Build       *Build            `hcl:"build,block"`
+	Command     string            `hcl:"command,optional"`
+	Volumes     map[string]string `hcl:"volumes,optional"`
+	Environment map[string]string `hcl:"environment,optional"`
+	Hostname    string            `hcl:"hostname,optional"`
+	Ports       map[string]string `hcl:"ports,optional"`
+	DependsOn   []string          `hcl:"depends_on,optional"`
 }
 
 func (svc HService) IsValid() (bool, error) {

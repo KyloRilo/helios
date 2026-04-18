@@ -2,14 +2,14 @@ package main
 
 func main() {
 	// TODO: worker node init method
-	// c := startNode()
+	// c := StartService()
 	// defer c.Shutdown(true)
 
 	// _, stop := signal.NotifyContext(context.Background())
 	// defer stop()
 }
 
-// func startNode() *cluster.Cluster {
+// func StartService() *cluster.Cluster {
 // 	host, port := getHostInfo()
 // 	system := actor.NewActorSystem()
 // 	provider, err := k8s.New()
