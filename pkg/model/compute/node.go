@@ -1,8 +1,7 @@
-package node
+package compute
 
 import "fmt"
 
-type Definition struct{}
 type OptionsApplier interface {
 	Apply(def Node) error
 }
@@ -21,8 +20,14 @@ type Context struct {
 type Status string
 
 const (
-	Up   Status = "UP"
-	Down Status = "DOWN"
+	Init      Status = "INIT"
+	Ready     Status = "READY"
+	Created   Status = "CREATED"
+	Updating  Status = "UPDATING"
+	Up        Status = "UP"
+	Down      Status = "DOWN"
+	Destroyed Status = "DESTROYED"
+	Error     Status = "ERROR"
 )
 
 type Ports map[string]string
@@ -49,23 +54,32 @@ type Node struct {
 	status  Status
 }
 
-func (n Node) GetId() string                 { return n.id }
-func (n Node) SetId(id string)               { n.id = id }
-func (n Node) GetImage() string              { return n.image }
-func (n Node) SetImage(img string)           { n.image = img }
-func (n Node) GetName() string               { return n.name }
-func (n Node) GetCmd() string                { return n.cmd }
-func (n Node) GetPorts() Ports               { return n.ports }
-func (n Node) GetEnv() map[string]string     { return n.env }
-func (n Node) GetVolumes() map[string]string { return n.volumes }
-func (n Node) GetContext() *Context          { return n.context }
-func (n Node) SetContext(ctx *Context)       { n.context = ctx }
-func (n Node) AddTag(tag string) {
+func (n Node) GetId() string { return n.id }
+func (n Node) SetId(id string) {
+	n.id = id
+}
+func (n Node) GetImage() string                  { return n.image }
+func (n Node) SetImage(img string)               { n.image = img }
+func (n Node) GetName() string                   { return n.name }
+func (n Node) SetName(name string)               { n.name = name }
+func (n Node) GetCmd() string                    { return n.cmd }
+func (n Node) SetCmd(cmd string)                 { n.cmd = cmd }
+func (n Node) GetPorts() Ports                   { return n.ports }
+func (n Node) SetPorts(ports Ports)              { n.ports = ports }
+func (n Node) GetEnv() map[string]string         { return n.env }
+func (n Node) SetEnv(env map[string]string)      { n.env = env }
+func (n Node) GetVolumes() map[string]string     { return n.volumes }
+func (n Node) SetVolumes(vols map[string]string) { n.volumes = vols }
+func (n Node) GetContext() *Context              { return n.context }
+func (n Node) SetContext(ctx *Context)           { n.context = ctx }
+func (n Node) GetStatus() Status                 { return n.status }
+func (n Node) SetStatus(stat Status)             { n.status = stat }
+func (n Node) AddTags(tag ...string) {
 	if n.tags == nil {
 		n.tags = []string{}
 	}
 
-	n.tags = append(n.tags, tag)
+	n.tags = append(n.tags, tag...)
 }
 
 func WithId(id string) NodeOption {
@@ -115,6 +129,12 @@ func WithContext(ctx *Context) NodeOption {
 	}
 }
 
+func WithTags(tags []string) NodeOption {
+	return func(node *Node) {
+		node.tags = tags
+	}
+}
+
 func WithStatus(stat Status) NodeOption {
 	return func(node *Node) {
 		node.status = stat
@@ -122,28 +142,14 @@ func WithStatus(stat Status) NodeOption {
 }
 
 func NewNode(opts ...NodeOption) *Node {
-	node := &Node{}
+	node := &Node{
+		status: Init,
+	}
+
 	for _, opt := range opts {
 		opt.Apply(node)
 	}
 
-	print(node)
+	node.status = Ready
 	return node
-}
-
-type CreateNodeResp struct {
-	Node *Node
-}
-type StartNodeResp struct {
-	Node *Node
-}
-type ListNodesResp struct {
-	Nodes []*Node
-}
-type StopNodeResp struct {
-	Node *Node
-}
-
-type RmNodeResp struct {
-	Node *Node
 }

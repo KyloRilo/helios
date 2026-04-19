@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/KyloRilo/helios/pkg/model/node"
+	"github.com/KyloRilo/helios/pkg/model/compute"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/docker/go-sdk/client"
@@ -18,14 +18,6 @@ import (
 	"github.com/docker/go-sdk/container"
 	apiClient "github.com/moby/moby/client"
 )
-
-type DockerResp struct {
-	ctr  container.Container
-	ctrs apiClient.ContainerListResult
-	strt apiClient.ContainerStartResult
-	stop apiClient.ContainerStopResult
-	rm   apiClient.ContainerRemoveResult
-}
 
 type DockerCtrl struct {
 	client    client.SDKClient
@@ -94,7 +86,7 @@ func buildContextArchive(contextPath string) (*os.File, error) {
 	return tmp, nil
 }
 
-func (d *DockerCtrl) buildImage(ctx context.Context, n *node.Node) error {
+func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
 	build := n.GetContext()
 	tag := n.GetImage()
 	if tag == "" {
@@ -122,7 +114,7 @@ func (d *DockerCtrl) buildImage(ctx context.Context, n *node.Node) error {
 	return nil
 }
 
-func (d *DockerCtrl) pullImage(ctx context.Context, n *node.Node) error {
+func (d DockerCtrl) pullImage(ctx context.Context, n *compute.Node) error {
 	err := image.Pull(ctx, n.GetImage(), image.WithPullClient(d.client))
 	if err != nil {
 		return fmt.Errorf("Failed to pull Image => %s", err)
@@ -151,19 +143,23 @@ func parsePorts(ports []string) (nat.PortSet, nat.PortMap, error) {
 	return exposed, bindings, nil
 }
 
-func (d *DockerCtrl) CreateNode(ctx context.Context, n *node.Node) (*node.CreateNodeResp, error) {
+func (d DockerCtrl) createNode(ctx context.Context, n *compute.Node) (string, error) {
 	var ctr *container.Container
 	var err error
 
 	switch {
 	case n.GetImage() != "":
 		if err := d.pullImage(ctx, n); err != nil {
-			return nil, err
+			return "", err
 		}
 	case n.GetContext() != nil:
 		if err := d.buildImage(ctx, n); err != nil {
-			return nil, err
+			return "", err
 		}
+	case n.GetImage() != "" && n.GetContext() != nil:
+		return "", fmt.Errorf("Node '%s' has both Image and Build Context specified. Please specify only one.", n.GetName())
+	default:
+		return "", fmt.Errorf("Node '%s' must have either an Image or a Build Context specified.", n.GetName())
 	}
 
 	if ctr, err = container.Run(
@@ -174,83 +170,78 @@ func (d *DockerCtrl) CreateNode(ctx context.Context, n *node.Node) (*node.Create
 		container.WithExposedPorts(n.GetPorts().ToStringArray()...),
 		container.WithCmd(parseCommand(n.GetCmd())...),
 		container.WithEnv(n.GetEnv()),
+		container.WithName(n.GetName()),
+		container.WithBridgeNetwork(),
+		container.WithNoStart(),
 	); err != nil {
-		return nil, err
+		return "", err
 	}
 
-	n.SetId(ctr.ID())
-	return &node.CreateNodeResp{
-		Node: n,
-	}, nil
+	return ctr.ID(), nil
 }
 
-func (d *DockerCtrl) StartNode(ctx context.Context, n *node.Node) (*node.StartNodeResp, error) {
+func (d DockerCtrl) startNode(ctx context.Context, n *compute.Node) error {
 	var err error
 	if _, err = d.client.ContainerStart(ctx, n.GetId(), apiClient.ContainerStartOptions{}); err != nil {
-		return nil, fmt.Errorf("Failed to start node => %s", err)
+		return fmt.Errorf("Failed to start node => %s", err)
 	}
 
-	return &node.StartNodeResp{
-		Node: n,
-	}, nil
+	return nil
 }
 
-func (d *DockerCtrl) ListNodes(ctx context.Context) (*node.ListNodesResp, error) {
+func (d DockerCtrl) listNodes(ctx context.Context) ([]*compute.Node, error) {
 	var resp apiClient.ContainerListResult
 	var err error
 	if resp, err = d.client.ContainerList(ctx, apiClient.ContainerListOptions{}); err != nil {
 		return nil, fmt.Errorf("Failed to list nodes => %s", err)
 	}
 
-	nodes := []*node.Node{}
+	nodes := []*compute.Node{}
 	for _, ctr := range resp.Items {
 		ports := map[string]string{}
 		for _, port := range ctr.Ports {
-			ports[string(port.PublicPort)] = string(port.PrivatePort)
+			ports[fmt.Sprintf("%d", port.PublicPort)] = fmt.Sprintf("%d", port.PrivatePort)
 		}
 
-		n := node.NewNode(
-			node.WithId(ctr.ID),
-			node.WithName(ctr.Names[0]),
-			node.WithCmd(ctr.Command),
-			node.WithPorts(ports),
+		n := compute.NewNode(
+			compute.WithId(ctr.ID),
+			compute.WithName(ctr.Names[0]),
+			compute.WithCmd(ctr.Command),
+			compute.WithPorts(ports),
 		)
 
 		nodes = append(nodes, n)
 	}
 
-	return &node.ListNodesResp{Nodes: nodes}, nil
+	return nodes, nil
 }
 
-func (d *DockerCtrl) StopNode(ctx context.Context, n *node.Node) (*node.StopNodeResp, error) {
+func (d DockerCtrl) stopNode(ctx context.Context, n *compute.Node) error {
 	var err error
 	if _, err = d.client.ContainerStop(ctx, n.GetId(), apiClient.ContainerStopOptions{}); err != nil {
-		return nil, fmt.Errorf("Failed to stop container => %s", err)
+		return fmt.Errorf("Failed to stop container => %s", err)
 	}
 
-	return &node.StopNodeResp{
-		Node: n,
-	}, nil
+	return nil
 }
 
-func (d *DockerCtrl) RemoveNode(ctx context.Context, n *node.Node) (*node.RmNodeResp, error) {
+func (d DockerCtrl) removeNode(ctx context.Context, n *compute.Node) error {
 	var err error
 	if _, err = d.client.ContainerRemove(ctx, n.GetId(), apiClient.ContainerRemoveOptions{}); err != nil {
-		return nil, fmt.Errorf("Failed to remove container => %s", err)
+		return fmt.Errorf("Failed to remove container => %s", err)
 	}
 
-	return &node.RmNodeResp{
-		Node: n,
-	}, nil
+	return nil
 }
 
-func newDockerCtrl(ctx context.Context) (*DockerCtrl, error) {
+func newDockerCtrl(ctx context.Context) (CtrlShim, error) {
 	client, err := client.New(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create docker client => %s", err)
 	}
-
-	return &DockerCtrl{
+	ctrl := DockerCtrl{
 		client: client,
-	}, nil
+	}
+
+	return ctrl, nil
 }

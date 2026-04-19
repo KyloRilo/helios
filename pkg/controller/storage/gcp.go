@@ -1,5 +1,5 @@
 package storage
 
-type gcpStorageService struct {
-	BaseStorageService
-}
+// type gcpStorageService struct {
+// 	BaseStorageService
+// }

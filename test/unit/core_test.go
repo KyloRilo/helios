@@ -5,28 +5,29 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/KyloRilo/helios/pkg/controller/compute"
+	compCtrl "github.com/KyloRilo/helios/pkg/controller/compute"
 	"github.com/KyloRilo/helios/pkg/model"
-	"github.com/KyloRilo/helios/pkg/model/node"
+	"github.com/KyloRilo/helios/pkg/model/compute"
 	"github.com/KyloRilo/helios/pkg/service/core"
+	"github.com/google/uuid"
 )
 
-type CompStub struct{ compute.ComputeController }
+type CompStub struct{ compCtrl.CtrlShim }
 
-func (c CompStub) CreateNode(_ context.Context, _ *node.Node) (*node.CreateNodeResp, error) {
-	return nil, nil
+func (c CompStub) createNode(_ context.Context, _ *compute.Node) (string, error) {
+	return "", nil
 }
 
-func (c CompStub) StartNode(_ context.Context, _ *node.Node) (*node.StartNodeResp, error) {
-	return nil, nil
+func (c CompStub) startNode(_ context.Context, _ *compute.Node) error {
+	return nil
 }
 
-func (c CompStub) StopNode(_ context.Context, _ *node.Node) (*node.StopNodeResp, error) {
-	return nil, nil
+func (c CompStub) stopNode(_ context.Context, _ *compute.Node) error {
+	return nil
 }
 
-func (c CompStub) RemoveNode(_ context.Context, _ *node.Node) (*node.RmNodeResp, error) {
-	return nil, nil
+func (c CompStub) removeNode(_ context.Context, _ *compute.Node) error {
+	return nil
 }
 
 func genClusterConfig() *model.HCluster {
@@ -42,31 +43,56 @@ func genClusterConfig() *model.HCluster {
 	}
 }
 
-func initCluster(ctx context.Context, stub compute.ComputeController) core.CoreService {
-	return core.NewCoreService(ctx, core.CoreArgs{
+func setNodes(svc core.CoreService) {
+	nodes := svc.GenNodes(svc.GetConfig().Services)
+	for _, n := range nodes {
+		n.SetId(uuid.New().String())
+	}
+
+	svc.SetNodes(nodes)
+}
+
+func initCluster(ctx context.Context, stub compCtrl.CtrlShim) core.CoreService {
+	svc := core.NewCoreService(ctx, core.CoreArgs{
 		Conf: genClusterConfig(),
-		ScalerArgs: compute.ControllerArgs{
+		ScalerArgs: compCtrl.ControllerArgs{
 			Stub: &stub,
 		},
 	})
+
+	setNodes(svc)
+	return svc
 }
 
 func TestInitCluster(t *testing.T) {
 	initCluster(t.Context(), CompStub{})
 }
 
+type CreatePasses CompStub
+
+func (c CreatePasses) createNode(_ context.Context, n *compute.Node) (string, error) {
+	return "some-id", nil
+}
+
 func TestCreateClusterPasses(t *testing.T) {
-	svc := initCluster(t.Context(), CompStub{})
+	svc := initCluster(t.Context(), CreatePasses{})
+
+	fmt.Println(svc.GetNodes())
+	fmt.Println("iterr nodes")
+	for n := range svc.GetNodes() {
+		fmt.Println(n)
+	}
+	fmt.Println("iterr done")
 	err := svc.CreateCluster(t.Context())
 	if err != nil {
 		t.Errorf("expected no error but got %v", err)
 	}
 }
 
-type CreateFailed struct{ CompStub }
+type CreateFailed CompStub
 
-func (c CreateFailed) CreateNode(_ context.Context, _ *node.Node) (*node.CreateNodeResp, error) {
-	return nil, fmt.Errorf("failed to create container")
+func (c CreateFailed) createNode(_ context.Context, _ *compute.Node) (string, error) {
+	return "", fmt.Errorf("failed to create container")
 }
 
 func TestCreateClusterCreateFails(t *testing.T) {
@@ -77,10 +103,10 @@ func TestCreateClusterCreateFails(t *testing.T) {
 	}
 }
 
-type StartFailed struct{ CompStub }
+type StartFailed CompStub
 
-func (c StartFailed) StartNode(_ context.Context, _ *node.Node) (*node.StartNodeResp, error) {
-	return nil, fmt.Errorf("failed to start container")
+func (c StartFailed) startNode(_ context.Context, _ *compute.Node) error {
+	return fmt.Errorf("failed to start container")
 }
 
 func TestStartClusterFails(t *testing.T) {
@@ -91,10 +117,10 @@ func TestStartClusterFails(t *testing.T) {
 	}
 }
 
-type StopFailed struct{ CompStub }
+type StopFailed CompStub
 
-func (c StopFailed) StopNode(_ context.Context, _ *node.Node) (*node.StopNodeResp, error) {
-	return nil, fmt.Errorf("failed to stop container")
+func (c StopFailed) stopNode(_ context.Context, _ *compute.Node) error {
+	return fmt.Errorf("failed to stop container")
 }
 
 func TestStopClusterFails(t *testing.T) {
@@ -105,18 +131,24 @@ func TestStopClusterFails(t *testing.T) {
 	}
 }
 
+type TeardownPasses CompStub
+
+func (t TeardownPasses) removeNode(_ context.Context, _ *compute.Node) error {
+	return nil
+}
+
 func TestTeardownCluster(t *testing.T) {
-	svc := initCluster(t.Context(), CompStub{})
+	svc := initCluster(t.Context(), TeardownPasses{})
 	err := svc.TeardownCluster(t.Context())
 	if err != nil {
 		t.Errorf("expected no error but got %v", err)
 	}
 }
 
-type RemoveFailed struct{ CompStub }
+type RemoveFailed CompStub
 
-func (c RemoveFailed) RemoveNode(ctx context.Context, _ *node.Node) (*node.RmNodeResp, error) {
-	return nil, fmt.Errorf("failed to remove container")
+func (c RemoveFailed) removeNode(ctx context.Context, _ *compute.Node) error {
+	return fmt.Errorf("failed to remove container")
 }
 
 func TestTeardownClusterRemoveFails(t *testing.T) {

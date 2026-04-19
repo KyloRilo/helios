@@ -9,9 +9,9 @@ type AwsCreds struct {
 }
 
 type AwsCtrl struct {
-	ComputeController
+	CompImpl
 }
 
-func newAwsCtrl(ctx context.Context, creds AwsCreds) ComputeController {
+func newAwsCtrl(ctx context.Context, creds AwsCreds) CtrlShim {
 	return AwsCtrl{}
 }
