@@ -87,10 +87,10 @@ func buildContextArchive(contextPath string) (*os.File, error) {
 }
 
 func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
-	build := n.GetContext()
-	tag := n.GetImage()
+	build := n.Context
+	tag := n.Image
 	if tag == "" {
-		tag = fmt.Sprintf("helios/%s:local", n.GetName())
+		tag = fmt.Sprintf("helios/%s:local", n.Name)
 	}
 
 	buildCtx, err := buildContextArchive(build.Path)
@@ -115,7 +115,7 @@ func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
 }
 
 func (d DockerCtrl) pullImage(ctx context.Context, n *compute.Node) error {
-	err := image.Pull(ctx, n.GetImage(), image.WithPullClient(d.client))
+	err := image.Pull(ctx, n.Image, image.WithPullClient(d.client))
 	if err != nil {
 		return fmt.Errorf("Failed to pull Image => %s", err)
 	}
@@ -148,29 +148,29 @@ func (d DockerCtrl) createNode(ctx context.Context, n *compute.Node) (string, er
 	var err error
 
 	switch {
-	case n.GetImage() != "":
+	case n.Image != "":
 		if err := d.pullImage(ctx, n); err != nil {
 			return "", err
 		}
-	case n.GetContext() != nil:
+	case n.Context != nil:
 		if err := d.buildImage(ctx, n); err != nil {
 			return "", err
 		}
-	case n.GetImage() != "" && n.GetContext() != nil:
-		return "", fmt.Errorf("Node '%s' has both Image and Build Context specified. Please specify only one.", n.GetName())
+	case n.Image != "" && n.Context != nil:
+		return "", fmt.Errorf("Node '%s' has both Image and Build Context specified. Please specify only one.", n.Name)
 	default:
-		return "", fmt.Errorf("Node '%s' must have either an Image or a Build Context specified.", n.GetName())
+		return "", fmt.Errorf("Node '%s' must have either an Image or a Build Context specified.", n.Name)
 	}
 
 	if ctr, err = container.Run(
 		ctx,
-		container.WithImage(n.GetImage()),
+		container.WithImage(n.Image),
 		container.WithImagePlatform("linux/amd64"),
 		container.WithClient(d.client),
-		container.WithExposedPorts(n.GetPorts().ToStringArray()...),
-		container.WithCmd(parseCommand(n.GetCmd())...),
-		container.WithEnv(n.GetEnv()),
-		container.WithName(n.GetName()),
+		container.WithExposedPorts(n.Ports.ToStringArray()...),
+		container.WithCmd(parseCommand(n.Cmd)...),
+		container.WithEnv(n.Env),
+		container.WithName(n.Name),
 		container.WithBridgeNetwork(),
 		container.WithNoStart(),
 	); err != nil {
@@ -182,7 +182,7 @@ func (d DockerCtrl) createNode(ctx context.Context, n *compute.Node) (string, er
 
 func (d DockerCtrl) startNode(ctx context.Context, n *compute.Node) error {
 	var err error
-	if _, err = d.client.ContainerStart(ctx, n.GetId(), apiClient.ContainerStartOptions{}); err != nil {
+	if _, err = d.client.ContainerStart(ctx, n.Id, apiClient.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("Failed to start node => %s", err)
 	}
 
@@ -218,7 +218,7 @@ func (d DockerCtrl) listNodes(ctx context.Context) ([]*compute.Node, error) {
 
 func (d DockerCtrl) stopNode(ctx context.Context, n *compute.Node) error {
 	var err error
-	if _, err = d.client.ContainerStop(ctx, n.GetId(), apiClient.ContainerStopOptions{}); err != nil {
+	if _, err = d.client.ContainerStop(ctx, n.Id, apiClient.ContainerStopOptions{}); err != nil {
 		return fmt.Errorf("Failed to stop container => %s", err)
 	}
 
@@ -227,7 +227,7 @@ func (d DockerCtrl) stopNode(ctx context.Context, n *compute.Node) error {
 
 func (d DockerCtrl) removeNode(ctx context.Context, n *compute.Node) error {
 	var err error
-	if _, err = d.client.ContainerRemove(ctx, n.GetId(), apiClient.ContainerRemoveOptions{}); err != nil {
+	if _, err = d.client.ContainerRemove(ctx, n.Id, apiClient.ContainerRemoveOptions{}); err != nil {
 		return fmt.Errorf("Failed to remove container => %s", err)
 	}
 

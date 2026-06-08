@@ -14,7 +14,7 @@ func readConfigFile(path string, target interface{}) error {
 	if err != nil {
 		// If there are HCL syntax errors, the diagnostics object will tell you
 		if diags, ok := err.(hcl.Diagnostics); ok {
-			fmt.Println("HCL error: %s", diags.Error())
+			fmt.Printf("HCL error: %s", diags.Error())
 		}
 		return fmt.Errorf("Failed to parse config: %s", err)
 	}

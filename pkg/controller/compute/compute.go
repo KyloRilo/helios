@@ -18,10 +18,33 @@ const (
 	ProviderGCR    Provider = "gcr"
 )
 
-const NodeActionCreate = "Create"
-const NodeActionStart = "Start"
-const NodeActionStop = "Stop"
-const NodeActionRemove = "Remove"
+type NodeAction string
+
+const (
+	NodeActionCreate NodeAction = "Create"
+	NodeActionStart  NodeAction = "Start"
+	NodeActionStop   NodeAction = "Stop"
+	NodeActionRemove NodeAction = "Remove"
+)
+
+func (n NodeAction) getExpectedStatuses() []compute.Status {
+	switch n {
+	case NodeActionCreate:
+		return []compute.Status{compute.Ready, compute.Destroyed}
+	case NodeActionStart:
+		return []compute.Status{compute.Created, compute.Down}
+	case NodeActionStop:
+		return []compute.Status{compute.Up}
+	case NodeActionRemove:
+		return []compute.Status{compute.Created, compute.Down}
+	default:
+		return nil
+	}
+}
+
+func (n NodeAction) isValidStatus(node *compute.Node) bool {
+	return slices.Contains(n.getExpectedStatuses(), node.Status)
+}
 
 func IsValidProvider(p Provider) bool {
 	switch p {
@@ -32,16 +55,17 @@ func IsValidProvider(p Provider) bool {
 	}
 }
 
-func isValidStatus(n *compute.Node, action string, expected ...compute.Status) error {
-	if slices.Contains(expected, n.GetStatus()) {
+func isValidStatus(n *compute.Node, act NodeAction) error {
+	if act.isValidStatus(n) {
 		return nil
 	}
 
 	return errors.InvalidNodeStatus{
-		NodeName:   n.GetName(),
-		NodeStatus: string(n.GetStatus()),
-		Action:     action,
+		NodeName:   n.Name,
+		NodeStatus: string(n.Status),
+		Action:     string(act),
 		Expected: func() []string {
+			expected := act.getExpectedStatuses()
 			strs := make([]string, len(expected))
 			for i, s := range expected {
 				strs[i] = string(s)
@@ -81,35 +105,32 @@ func (c CompImpl) CreateNode(ctx context.Context, n *compute.Node) (string, erro
 	var id string
 	var err error
 
-	if err := isValidStatus(n, NodeActionCreate, compute.Ready, compute.Destroyed); err != nil {
+	if err := isValidStatus(n, NodeActionCreate); err != nil {
 		return "", err
 	}
-	print("Creating node")
 
 	if id, err = c.CtrlShim.createNode(ctx, n); err != nil {
-		print("Setting status to error")
-		n.SetStatus(compute.Error)
+		n.Status = compute.Error
 		return "", err
 	}
 
-	print("Setting status to created")
-	n.SetId(id)
-	n.SetStatus(compute.Created)
+	n.Id = id
+	n.Status = compute.Created
 	return id, nil
 }
 
 func (c CompImpl) StartNode(ctx context.Context, n *compute.Node) error {
-	if err := isValidStatus(n, NodeActionStart, compute.Created, compute.Down); err != nil {
+	if err := isValidStatus(n, NodeActionStart); err != nil {
 		return err
 	}
 
 	err := c.CtrlShim.startNode(ctx, n)
 	if err != nil {
-		n.SetStatus(compute.Error)
+		n.Status = compute.Error
 		return err
 	}
 
-	n.SetStatus(compute.Up)
+	n.Status = compute.Up
 	return nil
 }
 
@@ -118,32 +139,32 @@ func (c CompImpl) ListNodes(ctx context.Context) ([]*compute.Node, error) {
 }
 
 func (c CompImpl) StopNode(ctx context.Context, n *compute.Node) error {
-	if err := isValidStatus(n, NodeActionStop, compute.Up); err != nil {
+	if err := isValidStatus(n, NodeActionStop); err != nil {
 		return err
 	}
 
 	err := c.CtrlShim.stopNode(ctx, n)
 	if err != nil {
-		n.SetStatus(compute.Error)
+		n.Status = compute.Error
 		return err
 	}
 
-	n.SetStatus(compute.Down)
+	n.Status = compute.Down
 	return nil
 }
 
 func (c CompImpl) RemoveNode(ctx context.Context, n *compute.Node) error {
-	if err := isValidStatus(n, NodeActionRemove, compute.Created, compute.Down); err != nil {
+	if err := isValidStatus(n, NodeActionRemove); err != nil {
 		return err
 	}
 
 	err := c.CtrlShim.removeNode(ctx, n)
 	if err != nil {
-		n.SetStatus(compute.Error)
+		n.Status = compute.Error
 		return err
 	}
 
-	n.SetStatus(compute.Destroyed)
+	n.Status = compute.Destroyed
 	return nil
 }
 
@@ -166,7 +187,7 @@ func isDockerHub(image string) bool {
 }
 
 type ControllerArgs struct {
-	Stub *CtrlShim
+	stub *CtrlShim
 	// DockerCreds *DockerCreds
 	AwsCreds *AwsCreds
 }
@@ -176,8 +197,8 @@ func NewComputeController(ctx context.Context, args ControllerArgs) (ComputeCont
 	var err error
 
 	switch {
-	case args.Stub != nil:
-		ctrl, err = *args.Stub, nil
+	case args.stub != nil:
+		ctrl, err = *args.stub, nil
 	case args.AwsCreds != nil:
 		ctrl, err = newAwsCtrl(ctx, *args.AwsCreds), nil
 	default:

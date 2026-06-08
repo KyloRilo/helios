@@ -8,40 +8,33 @@ import (
 	"github.com/KyloRilo/helios/pkg/model/compute"
 )
 
-type TestCompCtrl ComputeController
-type TestCompCtrlImpl CompImpl
+type TestCompCtrl struct{ CtrlShim }
 
-func (c TestCompCtrlImpl) GetProvider() Provider {
-	return ProviderTest
-}
-
-func (c TestCompCtrlImpl) CreateNode(_ context.Context, _ *compute.Node) (string, error) {
+func (c TestCompCtrl) createNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "", nil
 }
-func (c TestCompCtrlImpl) StartNode(_ context.Context, _ *compute.Node) error {
+func (c TestCompCtrl) startNode(_ context.Context, _ *compute.Node) error {
 	return nil
 }
-func (c TestCompCtrlImpl) ListNodes(_ context.Context) ([]*compute.Node, error) {
+func (c TestCompCtrl) listNodes(_ context.Context) ([]*compute.Node, error) {
 	return nil, nil
 }
-func (c TestCompCtrlImpl) StopNode(_ context.Context, _ *compute.Node) error {
+func (c TestCompCtrl) stopNode(_ context.Context, _ *compute.Node) error {
 	return nil
 }
-func (c TestCompCtrlImpl) RemoveNode(_ context.Context, _ *compute.Node) error {
+func (c TestCompCtrl) removeNode(_ context.Context, _ *compute.Node) error {
 	return nil
 }
 
 func newTestCtrl(ctx context.Context, stub CtrlShim) (ComputeController, error) {
-	ctrl := TestCompCtrlImpl{
-		CtrlShim: stub,
-	}
-
-	return ctrl, nil
+	return NewComputeController(ctx, ControllerArgs{
+		stub: &stub,
+	})
 }
 
-type CreatePasses TestCompCtrlImpl
+type CreatePasses struct{ TestCompCtrl }
 
-func (c CreatePasses) CreateNode(_ context.Context, _ *compute.Node) (string, error) {
+func (c CreatePasses) createNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "test-id", nil
 }
 
@@ -61,18 +54,18 @@ func TestCreateNodeSuccess(t *testing.T) {
 		t.Errorf("Expected id to be 'test-id' but got %s", id)
 	}
 
-	if n.GetId() != "test-id" {
-		t.Errorf("Expected node ID to be 'test-id' but got %s", n.GetId())
+	if n.Id != "test-id" {
+		t.Errorf("Expected node ID to be 'test-id' but got %s", n.Id)
 	}
 
-	if n.GetStatus() != compute.Created {
-		t.Errorf("Expected node status to be 'Created' but got %s", n.GetStatus())
+	if n.Status != compute.Created {
+		t.Errorf("Expected node status to be 'Created' but got %s", n.Status)
 	}
 }
 
-type CreateFailed TestCompCtrlImpl
+type CreateFailed struct{ TestCompCtrl }
 
-func (c CreateFailed) CreateNode(_ context.Context, _ *compute.Node) (string, error) {
+func (c CreateFailed) createNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "", fmt.Errorf("failed to create node")
 }
 
@@ -92,17 +85,23 @@ func TestCreateNodeFails(t *testing.T) {
 		t.Errorf("Expected id to be empty but got %s", id)
 	}
 
-	if n.GetId() != "" {
-		t.Errorf("Expected node ID to be empty but got %s", n.GetId())
+	if n.Id != "" {
+		t.Errorf("Expected node ID to be empty but got %s", n.Id)
 	}
 
-	if n.GetStatus() != compute.Error {
-		t.Errorf("Expected node status to be 'Error' but got %s", n.GetStatus())
+	if n.Status != compute.Error {
+		t.Errorf("Expected node status to be 'Error' but got %s", n.Status)
 	}
 }
 
+type StartPasses struct{ CreatePasses }
+
+func (c StartPasses) startNode(_ context.Context, _ *compute.Node) error {
+	return nil
+}
+
 func TestStartNodeSuccess(t *testing.T) {
-	ctrl, err := newTestCtrl(t.Context(), CreatePasses{})
+	ctrl, err := newTestCtrl(t.Context(), StartPasses{})
 	if err != nil {
 		t.Errorf("Failed to create ComputeController => %s", err)
 	}
@@ -118,14 +117,14 @@ func TestStartNodeSuccess(t *testing.T) {
 		t.Errorf("Expected no error but got %s", err)
 	}
 
-	if n.GetStatus() != compute.Up {
-		t.Errorf("Expected node status to be 'Up' but got %s", n.GetStatus())
+	if n.Status != compute.Up {
+		t.Errorf("Expected node status to be 'Up' but got %s", n.Status)
 	}
 }
 
-type StartFailed TestCompCtrlImpl
+type StartFailed struct{ CreatePasses }
 
-func (c StartFailed) StartNode(_ context.Context, _ *compute.Node) error {
+func (c StartFailed) startNode(_ context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to start container")
 }
 
@@ -146,13 +145,19 @@ func TestStartNodeFails(t *testing.T) {
 		t.Errorf("Expected error but got nil")
 	}
 
-	if n.GetStatus() != compute.Error {
-		t.Errorf("Expected node status to be 'Error' but got %s", n.GetStatus())
+	if n.Status != compute.Error {
+		t.Errorf("Expected node status to be 'Error' but got %s", n.Status)
 	}
 }
 
+type StopPasses struct{ StartPasses }
+
+func (c StopPasses) stopNode(_ context.Context, _ *compute.Node) error {
+	return nil
+}
+
 func TestStopNodeSuccess(t *testing.T) {
-	ctrl, err := newTestCtrl(t.Context(), CreatePasses{})
+	ctrl, err := newTestCtrl(t.Context(), StopPasses{})
 	if err != nil {
 		t.Errorf("Failed to create ComputeController => %s", err)
 	}
@@ -173,14 +178,14 @@ func TestStopNodeSuccess(t *testing.T) {
 		t.Errorf("Expected no error but got %s", err)
 	}
 
-	if n.GetStatus() != compute.Down {
-		t.Errorf("Expected node status to be 'Down' but got %s", n.GetStatus())
+	if n.Status != compute.Down {
+		t.Errorf("Expected node status to be 'Down' but got %s", n.Status)
 	}
 }
 
-type StopFailed TestCompCtrlImpl
+type StopFailed struct{ StartPasses }
 
-func (c StopFailed) StopNode(_ context.Context, _ *compute.Node) error {
+func (c StopFailed) stopNode(_ context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to stop container")
 }
 
@@ -206,13 +211,15 @@ func TestStopNodeFails(t *testing.T) {
 		t.Errorf("Expected error but got nil")
 	}
 
-	if n.GetStatus() != compute.Error {
-		t.Errorf("Expected node status to be 'Error' but got %s", n.GetStatus())
+	if n.Status != compute.Error {
+		t.Errorf("Expected node status to be 'Error' but got %s", n.Status)
 	}
 }
 
+type RemovePasses struct{ CreatePasses }
+
 func TestRemoveNodeSuccess(t *testing.T) {
-	ctrl, err := newTestCtrl(t.Context(), CreatePasses{})
+	ctrl, err := newTestCtrl(t.Context(), RemovePasses{})
 	if err != nil {
 		t.Errorf("Failed to create ComputeController => %s", err)
 	}
@@ -229,9 +236,9 @@ func TestRemoveNodeSuccess(t *testing.T) {
 	}
 }
 
-type RemoveFailed TestCompCtrlImpl
+type RemoveFailed struct{ CreatePasses }
 
-func (c RemoveFailed) RemoveNode(_ context.Context, _ *compute.Node) error {
+func (c RemoveFailed) removeNode(_ context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to remove container")
 }
 
@@ -250,5 +257,9 @@ func TestRemoveNodeFails(t *testing.T) {
 	err = ctrl.RemoveNode(t.Context(), n)
 	if err == nil {
 		t.Errorf("Expected error but got nil")
+	}
+
+	if n.Status != compute.Error {
+		t.Errorf("Expected node status to be 'Error' but got %s", n.Status)
 	}
 }

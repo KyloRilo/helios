@@ -42,114 +42,94 @@ func (p Ports) ToStringArray() []string {
 }
 
 type Node struct {
-	id      string
-	image   string
-	name    string
-	tags    []string
-	ports   Ports
-	cmd     string
-	env     map[string]string
-	volumes map[string]string
-	context *Context
-	status  Status
+	Id      string
+	Image   string
+	Name    string
+	Tags    []string
+	Ports   Ports
+	Cmd     string
+	Env     map[string]string
+	Volumes map[string]string
+	Context *Context
+	Status  Status
 }
 
-func (n Node) GetId() string { return n.id }
-func (n Node) SetId(id string) {
-	n.id = id
-}
-func (n Node) GetImage() string                  { return n.image }
-func (n Node) SetImage(img string)               { n.image = img }
-func (n Node) GetName() string                   { return n.name }
-func (n Node) SetName(name string)               { n.name = name }
-func (n Node) GetCmd() string                    { return n.cmd }
-func (n Node) SetCmd(cmd string)                 { n.cmd = cmd }
-func (n Node) GetPorts() Ports                   { return n.ports }
-func (n Node) SetPorts(ports Ports)              { n.ports = ports }
-func (n Node) GetEnv() map[string]string         { return n.env }
-func (n Node) SetEnv(env map[string]string)      { n.env = env }
-func (n Node) GetVolumes() map[string]string     { return n.volumes }
-func (n Node) SetVolumes(vols map[string]string) { n.volumes = vols }
-func (n Node) GetContext() *Context              { return n.context }
-func (n Node) SetContext(ctx *Context)           { n.context = ctx }
-func (n Node) GetStatus() Status                 { return n.status }
-func (n Node) SetStatus(stat Status)             { n.status = stat }
 func (n Node) AddTags(tag ...string) {
-	if n.tags == nil {
-		n.tags = []string{}
+	if n.Tags == nil {
+		n.Tags = []string{}
 	}
 
-	n.tags = append(n.tags, tag...)
+	n.Tags = append(n.Tags, tag...)
 }
 
 func WithId(id string) NodeOption {
 	return func(node *Node) {
-		node.id = id
+		node.Id = id
 	}
 }
 
 func WithImage(img string) NodeOption {
 	return func(node *Node) {
-		node.image = img
+		node.Image = img
 	}
 }
 
 func WithName(name string) NodeOption {
 	return func(node *Node) {
-		node.name = name
+		node.Name = name
 	}
 }
 
 func WithCmd(cmd string) NodeOption {
 	return func(node *Node) {
-		node.cmd = cmd
+		node.Cmd = cmd
 	}
 }
 
 func WithPorts(ports map[string]string) NodeOption {
 	return func(node *Node) {
-		node.ports = ports
+		node.Ports = ports
 	}
 }
 func WithEnv(env map[string]string) NodeOption {
 	return func(node *Node) {
-		node.env = env
+		node.Env = env
 	}
 }
 
 func WithVolumes(vols map[string]string) NodeOption {
 	return func(node *Node) {
-		node.volumes = vols
+		node.Volumes = vols
 	}
 }
 
 func WithContext(ctx *Context) NodeOption {
 	return func(node *Node) {
-		node.context = ctx
+		node.Context = ctx
 	}
 }
 
 func WithTags(tags []string) NodeOption {
 	return func(node *Node) {
-		node.tags = tags
+		node.Tags = tags
 	}
 }
 
 func WithStatus(stat Status) NodeOption {
 	return func(node *Node) {
-		node.status = stat
+		node.Status = stat
 	}
 }
 
 func NewNode(opts ...NodeOption) *Node {
 	node := &Node{
-		status: Init,
+		Status: Init,
 	}
 
 	for _, opt := range opts {
 		opt.Apply(node)
 	}
 
-	node.status = Ready
+	node.Status = Ready
 	return node
 }

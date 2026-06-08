@@ -1,9 +1,9 @@
 
 
 default: 
-# 	go mod tidy
+	go mod tidy
 	go build -v ./...
-	go test ./test/unit/... && go test ./test/config/...
+	go test ./pkg/...
 
 gen-proto:
 	protoc --go_out=. --go_opt=paths=source_relative \

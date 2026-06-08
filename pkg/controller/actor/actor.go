@@ -54,7 +54,6 @@ func (ac ActorSysController) LogMembers() {
 			log.Printf("Discovered member: %s", member.Id)
 			log.Printf("Member Host: %s (%s)", member.Host, member.Address())
 			log.Printf("Member Kinds: %v", member.GetKinds())
-			log.Printf(member.String())
 		}
 		time.Sleep(15 * time.Second)
 	}

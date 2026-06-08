@@ -1,12 +1,10 @@
-package unit
+package model
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/KyloRilo/helios/pkg/model"
 )
 
 func TestReadFile(t *testing.T) {
@@ -16,7 +14,7 @@ func TestReadFile(t *testing.T) {
 	}
 
 	path := filepath.Join(cwd, "../../bin/helios/local.cluster.hcl")
-	_, err = model.ReadManifestFile(path)
+	_, err = ReadManifestFile(path)
 	if err != nil {
 		t.Errorf("TestConfigRead() => %s", err)
 	}
@@ -56,7 +54,7 @@ func TestClusterConfig(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			t.Logf("\n%s", test)
-			conf, err := model.ParseManifest(test)
+			conf, err := ParseManifest(test)
 			if err != nil {
 				t.Error(err)
 			}

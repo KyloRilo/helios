@@ -91,10 +91,10 @@ func (cs *CoreService) CreateCluster(ctx context.Context) error {
 	for _, n := range ns {
 		var id string
 		if id, err = cs.compCtrl.CreateNode(ctx, n); err != nil {
-			failed[n.GetName()] = err.Error()
+			failed[n.Name] = err.Error()
 		}
 
-		n.SetId(id)
+		n.Id = id
 	}
 
 	if len(failed) != 0 {
@@ -115,7 +115,7 @@ func (cs *CoreService) StartCluster(ctx context.Context) error {
 	for _, n := range cs.nodes {
 		err := cs.compCtrl.StartNode(ctx, n)
 		if err != nil {
-			failed[n.GetId()] = err.Error()
+			failed[n.Id] = err.Error()
 		}
 	}
 
@@ -136,11 +136,10 @@ func (cs *CoreService) StopCluster(ctx context.Context) error {
 	for _, n := range cs.nodes {
 		err := cs.compCtrl.StopNode(ctx, n)
 		if err != nil {
-			failed[n.GetId()] = err.Error()
+			failed[n.Id] = err.Error()
 		}
 	}
 
-	print(failed)
 	if len(failed) != 0 {
 		return fmt.Errorf("The following nodes failed to stop => %s", failed)
 	}
@@ -158,7 +157,7 @@ func (cs *CoreService) TeardownCluster(ctx context.Context) error {
 	for _, n := range cs.nodes {
 		err := cs.compCtrl.RemoveNode(ctx, n)
 		if err != nil {
-			failed[n.GetId()] = err.Error()
+			failed[n.Id] = err.Error()
 		}
 	}
 
@@ -173,11 +172,11 @@ func (cs CoreService) Receive(actx actor.Context) {
 	switch actx.Message().(type) {
 	case *actor.Started:
 		fmt.Println("Started Core ActorService")
-
 	}
 }
 
 type CoreArgs struct {
+	stub       *compCtrl.ComputeController
 	Conf       *model.HCluster
 	ScalerArgs compCtrl.ControllerArgs
 }

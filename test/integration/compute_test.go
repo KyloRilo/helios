@@ -13,30 +13,30 @@ func TestComputeLifcycle(t *testing.T) {
 	exec := func(ctrl compCtrl.ComputeController, n *compute.Node) error {
 		id, err := ctrl.CreateNode(ctx, n)
 		if err != nil {
-			t.Errorf("Failed to Create Node '%s' => %s", n.GetName(), err)
+			t.Errorf("Failed to Create Node '%s' => %s", n.Name, err)
 		}
 
 		t.Log(n)
 
-		if n.GetId() == "" {
-			t.Errorf("Node ID is empty after creation for Node '%s'", n.GetName())
+		if n.Id == "" {
+			t.Errorf("Node ID is empty after creation for Node '%s'", n.Name)
 		}
 
-		if n.GetId() != id {
-			t.Errorf("Node ID mismatch after creation for Node '%s': expected '%s', got '%s'", n.GetName(), id, n.GetId())
+		if n.Id != id {
+			t.Errorf("Node ID mismatch after creation for Node '%s': expected '%s', got '%s'", n.Name, id, n.Id)
 		}
 
-		if n.GetStatus() != compute.Created {
-			t.Errorf("Node status is not 'Created' after creation for Node '%s': got '%s'", n.GetName(), n.GetStatus())
+		if n.Status != compute.Created {
+			t.Errorf("Node status is not 'Created' after creation for Node '%s': got '%s'", n.Name, n.Status)
 		}
 
 		err = ctrl.StartNode(ctx, n)
 		if err != nil {
-			t.Errorf("Failed to Start Node '%s' => %s", n.GetName(), err)
+			t.Errorf("Failed to Start Node '%s' => %s", n.Name, err)
 		}
 
-		if n.GetStatus() != compute.Up {
-			t.Errorf("Node status is not 'Up' after starting for Node '%s': got '%s'", n.GetName(), n.GetStatus())
+		if n.Status != compute.Up {
+			t.Errorf("Node status is not 'Up' after starting for Node '%s': got '%s'", n.Name, n.Status)
 		}
 
 		time.Sleep(20 * time.Second)
@@ -50,25 +50,25 @@ func TestComputeLifcycle(t *testing.T) {
 		}
 
 		for _, ctr := range ls {
-			t.Logf("Service: %s (ID: %s)", ctr.GetName(), ctr.GetId())
+			t.Logf("Service: %s (ID: %s)", ctr.Name, ctr.Id)
 		}
 
 		err = ctrl.StopNode(ctx, n)
 		if err != nil {
-			t.Errorf("Failed to Stop Node '%s' => %s", n.GetName(), err)
+			t.Errorf("Failed to Stop Node '%s' => %s", n.Name, err)
 		}
 
-		if n.GetStatus() != compute.Down {
-			t.Errorf("Node status is not 'Down' after stopping for Node '%s': got '%s'", n.GetName(), n.GetStatus())
+		if n.Status != compute.Down {
+			t.Errorf("Node status is not 'Down' after stopping for Node '%s': got '%s'", n.Name, n.Status)
 		}
 
 		err = ctrl.RemoveNode(ctx, n)
 		if err != nil {
-			t.Errorf("Failed to Remove Node '%s' => %s", n.GetName(), err)
+			t.Errorf("Failed to Remove Node '%s' => %s", n.Name, err)
 		}
 
-		if n.GetStatus() != compute.Destroyed {
-			t.Errorf("Node status is not 'Destroyed' after removal for Node '%s': got '%s'", n.GetName(), n.GetStatus())
+		if n.Status != compute.Destroyed {
+			t.Errorf("Node status is not 'Destroyed' after removal for Node '%s': got '%s'", n.Name, n.Status)
 		}
 
 		return nil
