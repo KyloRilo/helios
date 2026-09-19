@@ -2,36 +2,40 @@ package model
 
 import (
 	"fmt"
+	"os"
 
-	"github.com/hashicorp/hcl/v2"
+	"github.com/KyloRilo/helios/pkg/model/eval"
+	"github.com/KyloRilo/helios/pkg/model/graph"
 	"github.com/hashicorp/hcl/v2/gohcl"
-	"github.com/hashicorp/hcl/v2/hclsimple"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 func readConfigFile(path string, target interface{}) error {
-	err := hclsimple.DecodeFile(path, nil, target)
+	src, err := os.ReadFile(path)
 	if err != nil {
-		// If there are HCL syntax errors, the diagnostics object will tell you
-		if diags, ok := err.(hcl.Diagnostics); ok {
-			fmt.Printf("HCL error: %s", diags.Error())
-		}
-		return fmt.Errorf("Failed to parse config: %s", err)
+		return fmt.Errorf("Failed to read config file: %s", err)
+	}
+
+	ctx, body, err := eval.BuildEvalContext(src, path)
+	if err != nil {
+		return fmt.Errorf("Failed to build eval context: %s", err)
+	}
+
+	diags := gohcl.DecodeBody(body, ctx, target)
+	if diags.HasErrors() {
+		fmt.Printf("HCL error: %s", diags.Error())
+		return fmt.Errorf("Failed to parse config: %s", diags.Error())
 	}
 
 	return nil
 }
 
 func parseConfig(conf string, target interface{}) error {
-	var diags hcl.Diagnostics
-	var file *hcl.File
-
-	file, diags = hclsyntax.ParseConfig([]byte(conf), "", hcl.InitialPos)
-	if diags.HasErrors() {
-		return fmt.Errorf("Unable to Parse Config => %s", diags.Error())
+	ctx, body, err := eval.BuildEvalContext([]byte(conf), "config.hcl")
+	if err != nil {
+		return fmt.Errorf("Unable to Parse Config => %s", err)
 	}
 
-	diags = gohcl.DecodeBody(file.Body, nil, target)
+	diags := gohcl.DecodeBody(body, ctx, target)
 	if diags.HasErrors() {
 		return fmt.Errorf("Unable to Decode Body => %s", diags.Error())
 	}
@@ -83,6 +87,18 @@ func (cfg HCluster) IsValid() (bool, error) {
 		}
 	}
 
+	deps := make(map[string][]string, len(cfg.Services))
+	for _, svc := range cfg.Services {
+		deps[svc.Name] = svc.DependsOn
+	}
+	g, err := graph.New(deps)
+	if err != nil {
+		return false, fmt.Errorf("Dependency graph is invalid: %s", err)
+	}
+	if err := g.Validate(); err != nil {
+		return false, fmt.Errorf("Dependency graph is invalid: %s", err)
+	}
+
 	return true, nil
 }
 
@@ -97,7 +113,26 @@ type HService struct {
 	Environment map[string]string `hcl:"environment,optional"`
 	Hostname    string            `hcl:"hostname,optional"`
 	Ports       map[string]string `hcl:"ports,optional"`
+	Expose      []string          `hcl:"expose,optional"`
 	DependsOn   []string          `hcl:"depends_on,optional"`
+	Entrypoint  string            `hcl:"entrypoint,optional"`
+	WorkingDir  string            `hcl:"working_dir,optional"`
+	User        string            `hcl:"user,optional"`
+	Labels      map[string]string `hcl:"labels,optional"`
+	EnvFile     string            `hcl:"env_file,optional"`
+	Restart     string            `hcl:"restart,optional"`
+	Replicas    int               `hcl:"replicas,optional"`
+	Networks    []string          `hcl:"networks,optional"`
+	Healthcheck *Healthcheck      `hcl:"healthcheck,block"`
+	Resources   *Resources        `hcl:"resources,block"`
+}
+
+var validRestartPolicies = map[string]bool{
+	"":                true,
+	"no":              true,
+	"always":          true,
+	"on-failure":      true,
+	"unless-stopped":  true,
 }
 
 func (svc HService) IsValid() (bool, error) {
@@ -109,17 +144,42 @@ func (svc HService) IsValid() (bool, error) {
 		return false, fmt.Errorf("Service %s cannot have both image and build configuration", svc.Name)
 	}
 
+	if !validRestartPolicies[svc.Restart] {
+		return false, fmt.Errorf("Service %s has invalid restart policy '%s'", svc.Name, svc.Restart)
+	}
+
+	if svc.Replicas < 0 {
+		return false, fmt.Errorf("Service %s replicas must be non-negative", svc.Name)
+	}
+
 	return true, nil
 }
 
 type Build struct {
-	Context    string `hcl:"context"`
-	Dockerfile string `hcl:"dockerfile"`
+	Context    string            `hcl:"context"`
+	Dockerfile string            `hcl:"dockerfile"`
+	Args       map[string]string `hcl:"args,optional"`
+	Target     string            `hcl:"target,optional"`
+}
+
+type Healthcheck struct {
+	Test        string `hcl:"test"`
+	Interval    string `hcl:"interval,optional"`
+	Timeout     string `hcl:"timeout,optional"`
+	Retries     int    `hcl:"retries,optional"`
+	StartPeriod string `hcl:"start_period,optional"`
+}
+
+type Resources struct {
+	CPULimit          string `hcl:"cpu_limit,optional"`
+	MemoryLimit       string `hcl:"memory_limit,optional"`
+	CPUReservation    string `hcl:"cpu_reservation,optional"`
+	MemoryReservation string `hcl:"memory_reservation,optional"`
 }
 
 type LeaderConfig struct {
 	HConfig
-	Name string `hcl:"name,label"`
+	Name string `hcl:"name"`
 	Host string `hcl:"host"`
 	Port int    `hcl:"port"`
 }

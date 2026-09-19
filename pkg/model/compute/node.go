@@ -13,8 +13,10 @@ func (opt NodeOption) Apply(def *Node) {
 }
 
 type Context struct {
-	Path string
-	File string
+	Path   string
+	File   string
+	Args   map[string]string
+	Target string
 }
 
 type Status string
@@ -41,17 +43,45 @@ func (p Ports) ToStringArray() []string {
 	return ports
 }
 
+type Healthcheck struct {
+	Test        string
+	Interval    string
+	Timeout     string
+	Retries     int
+	StartPeriod string
+}
+
+type Resources struct {
+	CPULimit          string
+	MemoryLimit       string
+	CPUReservation    string
+	MemoryReservation string
+}
+
 type Node struct {
-	Id      string
-	Image   string
-	Name    string
-	Tags    []string
-	Ports   Ports
-	Cmd     string
-	Env     map[string]string
-	Volumes map[string]string
-	Context *Context
-	Status  Status
+	Id          string
+	Image       string
+	Name        string
+	Tags        []string
+	Ports       Ports
+	Cmd         string
+	Env         map[string]string
+	Volumes     map[string]string
+	Context     *Context
+	Status      Status
+	Hostname    string
+	Restart     string
+	Replicas    int
+	Networks    []string
+	Healthcheck *Healthcheck
+	Resources   *Resources
+	Entrypoint  string
+	WorkingDir  string
+	User        string
+	Labels      map[string]string
+	EnvFile     string
+	Expose      []string
+	DependsOn   []string
 }
 
 func (n Node) AddTags(tag ...string) {
@@ -118,6 +148,84 @@ func WithTags(tags []string) NodeOption {
 func WithStatus(stat Status) NodeOption {
 	return func(node *Node) {
 		node.Status = stat
+	}
+}
+
+func WithHostname(hostname string) NodeOption {
+	return func(node *Node) {
+		node.Hostname = hostname
+	}
+}
+
+func WithRestart(policy string) NodeOption {
+	return func(node *Node) {
+		node.Restart = policy
+	}
+}
+
+func WithReplicas(n int) NodeOption {
+	return func(node *Node) {
+		node.Replicas = n
+	}
+}
+
+func WithNetworks(networks []string) NodeOption {
+	return func(node *Node) {
+		node.Networks = networks
+	}
+}
+
+func WithHealthcheck(hc *Healthcheck) NodeOption {
+	return func(node *Node) {
+		node.Healthcheck = hc
+	}
+}
+
+func WithResources(res *Resources) NodeOption {
+	return func(node *Node) {
+		node.Resources = res
+	}
+}
+
+func WithEntrypoint(ep string) NodeOption {
+	return func(node *Node) {
+		node.Entrypoint = ep
+	}
+}
+
+func WithWorkingDir(dir string) NodeOption {
+	return func(node *Node) {
+		node.WorkingDir = dir
+	}
+}
+
+func WithUser(user string) NodeOption {
+	return func(node *Node) {
+		node.User = user
+	}
+}
+
+func WithLabels(labels map[string]string) NodeOption {
+	return func(node *Node) {
+		node.Labels = labels
+	}
+}
+
+func WithEnvFile(path string) NodeOption {
+	return func(node *Node) {
+		node.EnvFile = path
+	}
+}
+
+func WithExpose(ports []string) NodeOption {
+	return func(node *Node) {
+		node.Expose = ports
+	}
+}
+
+func WithDependsOn(deps []string) NodeOption {
+	return func(node *Node) {
+		node.DependsOn = deps
 	}
 }
 
