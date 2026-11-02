@@ -8,7 +8,6 @@ Bugs, dead code, missing functionality, and design concerns. Items removed when 
 - **`AddTags` value receiver** — tag mutations silently lost (`compute/node.go`)
 - **`Receive` value receiver on CoreService** — actor state mutations lost (`service/core/core.go`)
 - **api.dockerfile references nonexistent `cmd/api/`** — build fails (`bin/docker/api.dockerfile`)
-- **Dockerfile path mismatch** — docker-compose references `build/docker/` but files are in `bin/docker/`
 - **Unreachable switch case in Docker `createNode`** — `Image != "" && Context != nil` branch never hits (`compute/docker.go`)
 
 ## Dead Code

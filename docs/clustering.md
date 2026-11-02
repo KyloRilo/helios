@@ -30,7 +30,7 @@ Handles Raft consensus for leader election. `InitRaftService(RaftConfig)` return
 
 ## Deployment Topology
 
-**QA cluster** (`bin/helios/qa.cluster.hcl`) defines the integration test topology: 3 Consul servers + 1 client, 3 Helios leaders. Brought up via `helios up`, which creates a `helios-qa` user-defined Docker network (enabling DNS between containers). Leaders mount per-node config from `bin/config/leader-{1,2,3}.hcl` and the Docker socket (`/var/run/docker.sock`). Leader-1 bootstraps the Raft cluster with peers 2 and 3. Consul configs live in `bin/consul/` (datacenter `dc1`, retry-join across all 3 servers). Legacy `docker-compose.yml` is no longer the primary deployment method.
+**QA cluster** (`bin/helios/qa.cluster.hcl`) defines the integration test topology: 3 Consul servers + 1 client, 3 Helios leaders. Brought up via `helios up`, which creates a `helios-qa` user-defined Docker network (enabling DNS between containers). Leaders mount per-node config from `bin/config/leader-{1,2,3}.hcl` and the Docker socket (`/var/run/docker.sock`). Leader-1 bootstraps the Raft cluster with peers 2 and 3. Consul configs live in `bin/consul/` (datacenter `dc1`, retry-join across all 3 servers). The legacy `docker-compose.yml` has been removed — all orchestration is handled by the CLI.
 
 ## Dockerfiles
 
@@ -39,8 +39,6 @@ Handles Raft consensus for leader election. `InitRaftService(RaftConfig)` return
 - **leader.Dockerfile** — builds `cmd/leader`, creates empty Docker config for SDK init, exposes 6330 (Raft) and 6331 (Proto.Actor)
 - **worker.Dockerfile** — builds `cmd/worker` (produces empty binary)
 - **api.dockerfile** — **broken**: references `cmd/api/` which doesn't exist
-
-Note: `docker-compose.yml` references `build/docker/` paths but files actually live in `bin/docker/`.
 
 ## Proto Definition
 
@@ -53,4 +51,3 @@ Note: `docker-compose.yml` references `build/docker/` paths but files actually l
 - Consul controller uses `log.Fatalf` instead of returning errors
 - Storage controller fully dormant (all commented out)
 - `api.dockerfile` references nonexistent `cmd/api/`
-- Dockerfile path mismatch: docker-compose references `build/docker/`, files are in `bin/docker/`
