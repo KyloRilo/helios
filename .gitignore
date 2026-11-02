@@ -3,3 +3,4 @@ go.sum
 *.tfvars
 .terraform*
 terraform.tfstate*
+.helios

@@ -138,9 +138,8 @@ func TestNodeAllOptions(t *testing.T) {
 	if !reflect.DeepEqual(n.DependsOn, []string{"consul", "core"}) {
 		t.Errorf("expected depends_on [consul, core] but got %v", n.DependsOn)
 	}
-	// WithStatus is applied before NewNode sets Ready, so final status is Ready
-	if n.Status != Ready {
-		t.Errorf("expected status Ready but got '%s'", n.Status)
+	if n.Status != Created {
+		t.Errorf("expected status Created but got '%s'", n.Status)
 	}
 }
 

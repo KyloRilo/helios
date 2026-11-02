@@ -76,6 +76,8 @@ func isValidStatus(n *compute.Node, act NodeAction) error {
 }
 
 type CtrlShim interface {
+	createNetwork(context.Context, string) error
+	removeNetwork(context.Context, string) error
 	createNode(context.Context, *compute.Node) (string, error)
 	startNode(context.Context, *compute.Node) error
 	listNodes(context.Context) ([]*compute.Node, error)
@@ -85,6 +87,8 @@ type CtrlShim interface {
 
 type ComputeController interface {
 	GetProvider() Provider
+	CreateNetwork(ctx context.Context, name string) error
+	RemoveNetwork(ctx context.Context, name string) error
 	CreateNode(context.Context, *compute.Node) (string, error)
 	StartNode(context.Context, *compute.Node) error
 	ListNodes(context.Context) ([]*compute.Node, error)
@@ -99,6 +103,14 @@ type CompImpl struct {
 
 func (c CompImpl) GetProvider() Provider {
 	return c.provider
+}
+
+func (c CompImpl) CreateNetwork(ctx context.Context, name string) error {
+	return c.CtrlShim.createNetwork(ctx, name)
+}
+
+func (c CompImpl) RemoveNetwork(ctx context.Context, name string) error {
+	return c.CtrlShim.removeNetwork(ctx, name)
 }
 
 func (c CompImpl) CreateNode(ctx context.Context, n *compute.Node) (string, error) {

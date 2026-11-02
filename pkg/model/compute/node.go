@@ -238,6 +238,8 @@ func NewNode(opts ...NodeOption) *Node {
 		opt.Apply(node)
 	}
 
-	node.Status = Ready
+	if node.Status == Init {
+		node.Status = Ready
+	}
 	return node
 }

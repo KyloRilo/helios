@@ -13,7 +13,10 @@ gen-proto:
 integration: # default
 	go test ./test/integration/... -timeout 300s
 
-launchpad: export HELIOS_CONFIG_FILE = ./bin/helios/local.cluster.hcl
-launchpad: default
-	go run ./cmd/launchpad/launchpad.go
+cli:
+	go build -o bin/helios/helios ./cmd/cli/
+
+ui: export HELIOS_CONFIG_FILE = ./bin/helios/local.cluster.hcl
+ui: default
+	go run ./cmd/ui/
 

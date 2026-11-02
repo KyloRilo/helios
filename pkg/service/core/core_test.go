@@ -16,6 +16,8 @@ import (
 
 type CompStub struct{ compCtrl.ComputeController }
 
+func (c CompStub) CreateNetwork(_ context.Context, _ string) error { return nil }
+func (c CompStub) RemoveNetwork(_ context.Context, _ string) error { return nil }
 func (c CompStub) CreateNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "", nil
 }
@@ -68,7 +70,7 @@ func setGraph(svc *CoreService) {
 
 func initCluster(ctx context.Context, stub compCtrl.ComputeController) CoreService {
 	svc := NewCoreService(ctx, CoreArgs{
-		stub: &stub,
+		Stub: &stub,
 		Conf: genClusterConfig(),
 	})
 
@@ -120,7 +122,7 @@ func TestGraphLevels(t *testing.T) {
 
 func TestGetNodesNilGraph(t *testing.T) {
 	svc := NewCoreService(t.Context(), CoreArgs{
-		stub: func() *compCtrl.ComputeController {
+		Stub: func() *compCtrl.ComputeController {
 			var s compCtrl.ComputeController = CompStub{}
 			return &s
 		}(),
@@ -131,7 +133,7 @@ func TestGetNodesNilGraph(t *testing.T) {
 	}
 }
 
-type CreatePasses CompStub
+type CreatePasses struct{ CompStub }
 
 func (c CreatePasses) CreateNode(_ context.Context, n *compute.Node) (string, error) {
 	return "some-id", nil
@@ -148,7 +150,7 @@ func TestCreateClusterPasses(t *testing.T) {
 	}
 }
 
-type CreateFailed CompStub
+type CreateFailed struct{ CompStub }
 
 func (c CreateFailed) CreateNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "", fmt.Errorf("failed to create container")
@@ -162,7 +164,7 @@ func TestCreateClusterCreateFails(t *testing.T) {
 	}
 }
 
-type StartFailed CompStub
+type StartFailed struct{ CompStub }
 
 func (c StartFailed) StartNode(_ context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to start container")
@@ -176,7 +178,7 @@ func TestStartClusterFails(t *testing.T) {
 	}
 }
 
-type StopFailed CompStub
+type StopFailed struct{ CompStub }
 
 func (c StopFailed) StopNode(_ context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to stop container")
@@ -190,7 +192,7 @@ func TestStopClusterFails(t *testing.T) {
 	}
 }
 
-type TeardownPasses CompStub
+type TeardownPasses struct{ CompStub }
 
 func (t TeardownPasses) RemoveNode(_ context.Context, _ *compute.Node) error {
 	return nil
@@ -204,7 +206,7 @@ func TestTeardownCluster(t *testing.T) {
 	}
 }
 
-type RemoveFailed CompStub
+type RemoveFailed struct{ CompStub }
 
 func (c RemoveFailed) RemoveNode(ctx context.Context, _ *compute.Node) error {
 	return fmt.Errorf("failed to remove container")
@@ -283,7 +285,7 @@ func TestPlanUpdateImageChange(t *testing.T) {
 
 func TestPlanUpdateNoGraph(t *testing.T) {
 	svc := NewCoreService(t.Context(), CoreArgs{
-		stub: func() *compCtrl.ComputeController {
+		Stub: func() *compCtrl.ComputeController {
 			var s compCtrl.ComputeController = CompStub{}
 			return &s
 		}(),

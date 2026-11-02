@@ -12,8 +12,10 @@ import (
 	"github.com/KyloRilo/helios/pkg/model/compute"
 
 	"github.com/docker/go-connections/nat"
+	dockerContainer "github.com/moby/moby/api/types/container"
 	"github.com/docker/go-sdk/client"
 	"github.com/docker/go-sdk/image"
+	"github.com/docker/go-sdk/network"
 
 	"github.com/docker/go-sdk/container"
 	apiClient "github.com/moby/moby/client"
@@ -86,11 +88,26 @@ func buildContextArchive(contextPath string) (*os.File, error) {
 	return tmp, nil
 }
 
+func (d DockerCtrl) createNetwork(ctx context.Context, name string) error {
+	_, err := network.New(ctx, network.WithClient(d.client), network.WithName(name))
+	if err != nil {
+		return fmt.Errorf("create network %s: %w", name, err)
+	}
+	return nil
+}
+
+func (d DockerCtrl) removeNetwork(ctx context.Context, name string) error {
+	_, err := d.client.NetworkRemove(ctx, name, apiClient.NetworkRemoveOptions{})
+	if err != nil {
+		return fmt.Errorf("remove network %s: %w", name, err)
+	}
+	return nil
+}
+
 func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
 	build := n.Context
-	tag := n.Image
-	if tag == "" {
-		tag = fmt.Sprintf("helios/%s:local", n.Name)
+	if n.Image == "" {
+		n.Image = fmt.Sprintf("helios/%s:local", n.Name)
 	}
 
 	buildCtx, err := buildContextArchive(build.Path)
@@ -102,7 +119,7 @@ func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
 
 	resp, err := d.client.ImageBuild(ctx, buildCtx, apiClient.ImageBuildOptions{
 		Dockerfile: build.File,
-		Tags:       []string{tag},
+		Tags:       []string{n.Image},
 		Remove:     true,
 	})
 
@@ -110,6 +127,10 @@ func (d DockerCtrl) buildImage(ctx context.Context, n *compute.Node) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		return fmt.Errorf("reading build output: %w", err)
+	}
 
 	return nil
 }
@@ -162,8 +183,7 @@ func (d DockerCtrl) createNode(ctx context.Context, n *compute.Node) (string, er
 		return "", fmt.Errorf("Node '%s' must have either an Image or a Build Context specified.", n.Name)
 	}
 
-	if ctr, err = container.Run(
-		ctx,
+	opts := []container.ContainerCustomizer{
 		container.WithImage(n.Image),
 		container.WithImagePlatform("linux/amd64"),
 		container.WithClient(d.client),
@@ -171,9 +191,42 @@ func (d DockerCtrl) createNode(ctx context.Context, n *compute.Node) (string, er
 		container.WithCmd(parseCommand(n.Cmd)...),
 		container.WithEnv(n.Env),
 		container.WithName(n.Name),
-		container.WithBridgeNetwork(),
 		container.WithNoStart(),
-	); err != nil {
+	}
+
+	if len(n.Networks) > 0 {
+		for _, nw := range n.Networks {
+			opts = append(opts, container.WithNetworkName([]string{n.Name}, nw))
+		}
+	} else {
+		opts = append(opts, container.WithBridgeNetwork())
+	}
+
+	if n.Entrypoint != "" {
+		opts = append(opts, container.WithEntrypoint(strings.Fields(n.Entrypoint)...))
+	}
+
+	if n.Hostname != "" {
+		opts = append(opts, container.WithConfigModifier(func(cfg *dockerContainer.Config) {
+			cfg.Hostname = n.Hostname
+		}))
+	}
+
+	if len(n.Volumes) > 0 {
+		binds := make([]string, 0, len(n.Volumes))
+		for src, dst := range n.Volumes {
+			abs, err := filepath.Abs(src)
+			if err != nil {
+				abs = src
+			}
+			binds = append(binds, abs+":"+dst)
+		}
+		opts = append(opts, container.WithHostConfigModifier(func(hc *dockerContainer.HostConfig) {
+			hc.Binds = append(hc.Binds, binds...)
+		}))
+	}
+
+	if ctr, err = container.Run(ctx, opts...); err != nil {
 		return "", err
 	}
 

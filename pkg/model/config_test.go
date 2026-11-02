@@ -278,23 +278,23 @@ func TestReadQaClusterFile(t *testing.T) {
 		t.Fatalf("expected 1 cluster but got %d", len(conf.Clusters))
 	}
 	services := conf.Clusters[0].Services
-	if len(services) != 8 {
-		t.Fatalf("expected 8 services but got %d", len(services))
+	if len(services) != 7 {
+		t.Fatalf("expected 7 services but got %d", len(services))
 	}
 
 	for i := 0; i < 3; i++ {
-		expected := fmt.Sprintf("consul-%d", i+1)
+		expected := fmt.Sprintf("consul-server-%d", i+1)
 		if services[i].Name != expected {
 			t.Errorf("service[%d]: expected %q but got %q", i, expected, services[i].Name)
 		}
 	}
 
-	worker := services[5]
-	if worker.Name != "worker" {
-		t.Errorf("expected last service 'worker' but got %q", worker.Name)
+	lastLeader := services[len(services)-1]
+	if lastLeader.Name != "helios-leader-3" {
+		t.Errorf("expected last service 'helios-leader-3' but got %q", lastLeader.Name)
 	}
-	if len(worker.DependsOn) != 4 {
-		t.Errorf("expected worker to have 4 deps but got %d: %v", len(worker.DependsOn), worker.DependsOn)
+	if len(lastLeader.DependsOn) != 3 {
+		t.Errorf("expected leader to have 3 deps (consul servers) but got %d: %v", len(lastLeader.DependsOn), lastLeader.DependsOn)
 	}
 }
 

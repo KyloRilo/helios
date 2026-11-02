@@ -7,8 +7,9 @@ variable "leader_count" {
 }
 
 locals {
+  leader_names = [for i in range(var.leader_count) : format("helios-leader-%d", i + 1)]
   consul_names = [for i in range(var.consul_count) : format("consul-server-%d", i + 1)]
-  leader_names = [for i in range(var.leader_count) : format("leader-server-%d", i + 1)]
+  join_cmd = join(" -retry-join=", local.consul_names)
 }
 
 cluster "qa" {
@@ -20,20 +21,19 @@ cluster "qa" {
       hostname = local.consul_names[each.value]
       command  = "agent -server -bootstrap-expect=3 -node=${local.consul_names[each.value]}"
       volumes  = {
-        "./build/consul/server${each.value}_config.json" = "/consul/config/config.json"
+        "bin/consul/server${each.value + 1}_config.json" = "/consul/config/config.json"
       }
       ports = {
         "850${each.value}" = "8500"
-        "5${each.value}"   = "53"
       }
     }
   }
 
   service "consul-client" {
     image   = "hashicorp/consul:latest"
-    command = "agent -node=consul-client -config-dir=/consul/config -retry-join=consul-server-1 -retry-join=consul-server-2 -retry-join=consul-server-3"
+    command = "agent -node=consul-client -config-dir=/consul/config ${local.join_cmd}"
     volumes = {
-      "./build/consul/client_config.json" = "/consul/config/config.json"
+      "bin/consul/client_config.json" = "/consul/config/config.json"
     }
     depends_on = local.consul_names
   }
@@ -44,38 +44,23 @@ cluster "qa" {
     content {
       build {
         context    = "."
-        dockerfile = "build/docker/leader.Dockerfile"
+        dockerfile = "bin/docker/leader.Dockerfile"
       }
 
-      hostname = "helios"
+      hostname = local.leader_names[each.value]
       ports = {
         "633${each.value}" = "6330"
+        "634${each.value}" = "6331"
+      }
+      volumes = {
+        "bin/config/leader-${each.value + 1}.hcl" = "/helios/config/config.hcl"
+        "/var/run/docker.sock"                     = "/var/run/docker.sock"
       }
       environment = {
         "CONSUL_HTTP_ADDR" = "${local.consul_names[0]}:8500"
-        "NODE_ID"          = each.value
-        "NODE_COUNT"       = var.leader_count
-        "HELIOS_HOST"      = "helios"
-        "HELIOS_PORT"      = "6330"
       }
 
       depends_on = local.consul_names
     }
-  }
-
-  service "worker" {
-    build {
-      context    = "."
-      dockerfile = "build/docker/worker.Dockerfile"
-    }
-
-    environment = {
-      "CONSUL_HTTP_ADDR" = "${local.consul_names[0]}:8500"
-      "NODE_ID"          = "2"
-      "HELIOS_HOST"      = "helios"
-      "HELIOS_PORT"      = "6330"
-    }
-
-    depends_on = concat(local.consul_names, local.leader_names)
   }
 }

@@ -179,9 +179,28 @@ type Resources struct {
 
 type LeaderConfig struct {
 	HConfig
-	Name string `hcl:"name"`
-	Host string `hcl:"host"`
-	Port int    `hcl:"port"`
+	Name        string            `hcl:"name"`
+	ClusterName string            `hcl:"cluster_name,optional"`
+	Host        string            `hcl:"host"`
+	Port        int               `hcl:"port"`
+	NodeID      string            `hcl:"node_id,optional"`
+	RaftDir     string            `hcl:"raft_dir,optional"`
+	RaftBind    string            `hcl:"raft_bind,optional"`
+	Bootstrap   bool              `hcl:"bootstrap,optional"`
+	RaftPeers   map[string]string `hcl:"raft_peers,optional"`
+}
+
+func (cfg LeaderConfig) IsValid() (bool, error) {
+	if cfg.Name == "" {
+		return false, fmt.Errorf("leader config: name is required")
+	}
+	if cfg.Host == "" {
+		return false, fmt.Errorf("leader config: host is required")
+	}
+	if cfg.Port == 0 {
+		return false, fmt.Errorf("leader config: port is required")
+	}
+	return true, nil
 }
 
 type WorkerConfig struct {

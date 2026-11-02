@@ -10,6 +10,8 @@ import (
 
 type TestCompCtrl struct{ CtrlShim }
 
+func (c TestCompCtrl) createNetwork(_ context.Context, _ string) error { return nil }
+func (c TestCompCtrl) removeNetwork(_ context.Context, _ string) error { return nil }
 func (c TestCompCtrl) createNode(_ context.Context, _ *compute.Node) (string, error) {
 	return "", nil
 }

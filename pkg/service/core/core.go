@@ -143,6 +143,11 @@ func (cs *CoreService) CreateCluster(ctx context.Context) error {
 		return err
 	}
 
+	networkName := "helios-" + cs.conf.Name
+	if err := cs.compCtrl.CreateNetwork(ctx, networkName); err != nil {
+		return fmt.Errorf("failed to create network: %w", err)
+	}
+
 	cg, err := cs.GenGraph(cs.conf.Services)
 	if err != nil {
 		return err
@@ -155,6 +160,7 @@ func (cs *CoreService) CreateCluster(ctx context.Context) error {
 
 	for _, level := range levels {
 		for _, n := range level {
+			n.Networks = append(n.Networks, networkName)
 			var id string
 			if id, err = cs.compCtrl.CreateNode(ctx, n); err != nil {
 				failed[n.Name] = err.Error()
@@ -163,11 +169,12 @@ func (cs *CoreService) CreateCluster(ctx context.Context) error {
 		}
 	}
 
+	cs.SetGraph(cg)
+
 	if len(failed) != 0 {
 		return fmt.Errorf("The following nodes failed to create => %s", failed)
 	}
 
-	cs.SetGraph(cg)
 	return nil
 }
 
@@ -249,6 +256,9 @@ func (cs *CoreService) TeardownCluster(ctx context.Context) error {
 		return fmt.Errorf("Failed to destroy the following nodes => %s", failed)
 	}
 
+	networkName := "helios-" + cs.conf.Name
+	_ = cs.compCtrl.RemoveNetwork(ctx, networkName)
+
 	return nil
 }
 
@@ -283,15 +293,15 @@ func (cs CoreService) Receive(actx actor.Context) {
 }
 
 type CoreArgs struct {
-	stub       *compCtrl.ComputeController
+	Stub       *compCtrl.ComputeController
 	Conf       *model.HCluster
 	ScalerArgs compCtrl.ControllerArgs
 }
 
 func NewCoreService(ctx context.Context, args CoreArgs) CoreService {
 	var ctrl compCtrl.ComputeController
-	if args.stub != nil {
-		ctrl = *args.stub
+	if args.Stub != nil {
+		ctrl = *args.Stub
 	} else {
 		var err error
 		ctrl, err = compCtrl.NewComputeController(ctx, args.ScalerArgs)

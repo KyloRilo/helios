@@ -6,56 +6,88 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 
+	heliosRaft "github.com/KyloRilo/helios/pkg/controller/raft"
+	"github.com/KyloRilo/helios/pkg/model"
+	"github.com/KyloRilo/helios/pkg/service/core"
 	"github.com/KyloRilo/helios/pkg/service/leader"
+	"github.com/hashicorp/raft"
 )
 
-func getHostInfo() (host string, port int) {
-	host = os.Getenv("HELIOS_HOST")
-	port, err := strconv.Atoi(os.Getenv("HELIOS_PORT"))
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return host, port
-}
-
-func mainOld() {
-	// ctx := context.Background()
-	// host, port := getHostInfo()
-	// nodeId := os.Getenv("NODE_ID")
-	// raftDir := filepath.Join(os.Getenv("RAFT_DIR"), nodeId)
-	// os.MkdirAll(raftDir, 0700)
-
-	// mngr := heliosRaft.InitRaftManager(nodeId, raftDir, fmt.Sprintf(`%s:800%s`, host, nodeId))
-	// if nodeId == "1" {
-	// 	mngr.BootstrapCluster()
-	// 	time.Sleep(60 * time.Second)
-	// 	mngr.AddVoter()
-	// } else {
-	// 	// TODO: have nodes request to join the cluster via gRPC
-	// 	// Consul service mesh could help here
-	// }
-
-	// leader := leader.InitLeaderService(ctx, host, port)
-	// defer leader.Shutdown()
-
-	// _, stop := signal.NotifyContext(ctx)
-	// defer stop()
-
-	// leader.DiscoverPeers()
-	// leader.ListMembers()
-}
-
 func main() {
-	ctx := context.Background()
-	configDir := flag.String("config", "/helios/config/config.hcl", "Path to helios config hcl")
-	leader := leader.NewLeader(ctx, *configDir)
-	defer leader.SpinDown()
+	configPath := flag.String("config", "/helios/config/config.hcl", "Path to leader config HCL")
+	flag.Parse()
 
-	_, stop := signal.NotifyContext(ctx)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	leader.Hello()
+	conf, err := model.ReadLeaderConfigFile(*configPath)
+	if err != nil {
+		log.Fatalf("failed to read config: %v", err)
+	}
+
+	if ok, err := conf.IsValid(); !ok {
+		log.Fatalf("invalid config: %v", err)
+	}
+
+	nodeID := conf.NodeID
+	if nodeID == "" {
+		nodeID = conf.Name
+	}
+
+	raftBind := conf.RaftBind
+	if raftBind == "" {
+		raftBind = conf.Host + ":6330"
+	}
+
+	raftDir := conf.RaftDir
+	if raftDir == "" {
+		raftDir = "/tmp/helios-raft/" + nodeID
+	}
+
+	l, err := leader.NewLeader(ctx, leader.LeaderArgs{
+		Conf: conf,
+		CoreArgs: core.CoreArgs{
+			Conf: nil,
+		},
+		RaftCfg: &heliosRaft.RaftConfig{
+			NodeID:  nodeID,
+			RaftDir: raftDir,
+			Bind:    raftBind,
+		},
+	})
+	if err != nil {
+		log.Fatalf("failed to create leader: %v", err)
+	}
+
+	defer l.SpinDown()
+	l.SpinUp()
+
+	if conf.Bootstrap {
+		servers := []raft.Server{
+			{
+				Suffrage: raft.Voter,
+				ID:       raft.ServerID(nodeID),
+				Address:  raft.ServerAddress(raftBind),
+			},
+		}
+		for peerID, peerAddr := range conf.RaftPeers {
+			servers = append(servers, raft.Server{
+				Suffrage: raft.Voter,
+				ID:       raft.ServerID(peerID),
+				Address:  raft.ServerAddress(peerAddr),
+			})
+		}
+
+		if err := l.BootstrapRaft(servers); err != nil {
+			log.Fatalf("failed to bootstrap raft: %v", err)
+		}
+		log.Printf("Raft cluster bootstrapped with %d servers", len(servers))
+	}
+
+	log.Printf("Leader %s started (node_id=%s, raft_bind=%s, is_bootstrap=%v)",
+		conf.Name, nodeID, raftBind, conf.Bootstrap)
+
+	<-ctx.Done()
+	log.Println("Shutting down leader")
 }
